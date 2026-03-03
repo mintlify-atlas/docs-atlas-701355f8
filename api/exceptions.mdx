@@ -1,0 +1,163 @@
+---
+title: "Exceptions"
+description: "Exception classes for Flask-Discord error handling"
+---
+
+## HttpException
+
+Base Exception class representing a HTTP exception.
+
+```python
+class HttpException(Exception)
+```
+
+This is the base exception class that all other Flask-Discord HTTP exceptions inherit from.
+
+## RateLimited
+
+A HTTP Exception raised when the application is being rate limited by Discord API. It provides the `response` attribute which can be used to get more details of the actual response from the Discord API.
+
+```python
+class RateLimited(HttpException)
+```
+
+### Constructor
+
+```python
+RateLimited(json: dict, headers: dict)
+```
+
+<ParamField path="json" type="dict" required>
+  The JSON response data from Discord API.
+</ParamField>
+
+<ParamField path="headers" type="dict" required>
+  The response headers from Discord API.
+</ParamField>
+
+### Attributes
+
+<ResponseField name="json" type="dict">
+  The actual JSON data received. Shorthand to `response.json()`.
+</ResponseField>
+
+<ResponseField name="message" type="str">
+  A message saying you are being rate limited.
+</ResponseField>
+
+<ResponseField name="retry_after" type="int">
+  The number of milliseconds to wait before submitting another request.
+</ResponseField>
+
+<ResponseField name="is_global" type="bool">
+  A value indicating if you are being globally rate limited or not.
+</ResponseField>
+
+### Example
+
+```python
+from flask_discord.exceptions import RateLimited
+
+try:
+    user = discord.fetch_user()
+except RateLimited as e:
+    print(f"Rate limited! Retry after {e.retry_after}ms")
+    print(f"Global rate limit: {e.is_global}")
+    print(f"Message: {e.message}")
+```
+
+## Unauthorized
+
+A HTTP Exception raised when user is not authorized.
+
+```python
+class Unauthorized(HttpException)
+```
+
+This exception is typically raised by the `@requires_authorization` decorator when a user tries to access a protected route without being authenticated via Discord OAuth2.
+
+### Example
+
+```python
+from flask import redirect, url_for
+from flask_discord.exceptions import Unauthorized
+
+@app.errorhandler(Unauthorized)
+def handle_unauthorized(e):
+    # Redirect to login page when user is not authorized
+    return redirect(url_for("login"))
+```
+
+## AccessDenied
+
+Exception raised when user cancels OAuth authorization grant.
+
+```python
+class AccessDenied(HttpException)
+```
+
+This exception is raised when a user explicitly denies the OAuth2 authorization request in the Discord authorization page.
+
+### Example
+
+```python
+from flask import redirect, url_for
+from flask_discord.exceptions import AccessDenied
+
+@app.route("/callback")
+def callback():
+    try:
+        discord.callback()
+        return redirect(url_for("profile"))
+    except AccessDenied:
+        return "You denied the authorization request.", 403
+```
+
+## Exception Hierarchy
+
+```
+Exception
+└── HttpException
+    ├── RateLimited
+    ├── Unauthorized
+    └── AccessDenied
+```
+
+## Best Practices
+
+<Note>
+  Always handle Flask-Discord exceptions in your application to provide a good user experience.
+</Note>
+
+```python
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session
+from flask_discord.exceptions import HttpException, Unauthorized, AccessDenied, RateLimited
+
+app = Flask(__name__)
+discord = DiscordOAuth2Session(app)
+
+# Handle unauthorized access
+@app.errorhandler(Unauthorized)
+def handle_unauthorized(e):
+    return redirect(url_for("login"))
+
+# Handle access denied
+@app.errorhandler(AccessDenied)
+def handle_access_denied(e):
+    return "You denied the authorization.", 403
+
+# Handle rate limiting
+@app.errorhandler(RateLimited)
+def handle_rate_limit(e):
+    return f"Rate limited. Retry after {e.retry_after}ms", 429
+
+# Handle general HTTP exceptions
+@app.errorhandler(HttpException)
+def handle_http_exception(e):
+    return f"An error occurred: {str(e)}", 500
+```
+
+<Warning>
+  When handling rate limits, make sure to respect the `retry_after` value to avoid getting your application banned.
+</Warning>

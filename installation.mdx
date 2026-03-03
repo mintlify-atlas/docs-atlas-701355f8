@@ -1,0 +1,58 @@
+---
+title: Installation
+description: Install Flask-Discord in your Python environment
+---
+
+## Installing Flask-Discord
+
+Flask-Discord is available on PyPI and can be installed using pip.
+
+<CodeGroup>
+
+```bash pip
+pip install Flask-Discord
+```
+
+```bash pip3
+pip3 install Flask-Discord
+```
+
+```bash python -m pip
+python -m pip install Flask-Discord
+```
+
+```bash python3 -m pip
+python3 -m pip install Flask-Discord
+```
+
+</CodeGroup>
+
+## Verify Installation
+
+After installation, you can verify that Flask-Discord is installed correctly by importing it in Python:
+
+```python
+from flask_discord import DiscordOAuth2Session
+print("Flask-Discord installed successfully!")
+```
+
+## Dependencies
+
+Flask-Discord automatically installs the following dependencies:
+
+- **Flask** - The web framework
+- **requests_oauthlib** - OAuth2 client implementation
+- **cachetools** - Caching utilities for user data
+- **pyjwt** (>=2.4.0) - JSON Web Token implementation
+- **requests** - HTTP library
+- **oauthlib** - OAuth implementation
+
+<Note>
+  You don't need to install these dependencies manually - they will be installed automatically with Flask-Discord.
+</Note>
+
+## Next Steps
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Learn how to build your first Discord OAuth2 application with Flask-Discord
+</Card>

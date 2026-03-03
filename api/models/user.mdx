@@ -1,0 +1,222 @@
+---
+title: "User Model"
+description: "Class representing a Discord user in Flask-Discord"
+---
+
+## User
+
+Class representing Discord User.
+
+### Constructor
+
+```python
+User(payload: dict)
+```
+
+<ParamField path="payload" type="dict" required>
+  Raw Discord API user payload.
+</ParamField>
+
+## Attributes
+
+<ResponseField name="id" type="int">
+  The Discord ID of the user.
+</ResponseField>
+
+<ResponseField name="username" type="str">
+  The Discord username of the user.
+</ResponseField>
+
+<ResponseField name="discriminator" type="str">
+  4 length string representing Discord tag of the user.
+</ResponseField>
+
+<ResponseField name="avatar_hash" type="str">
+  Hash of user's avatar.
+</ResponseField>
+
+<ResponseField name="bot" type="bool">
+  A boolean representing whether the user belongs to an OAuth2 application.
+</ResponseField>
+
+<ResponseField name="mfa_enabled" type="bool">
+  A boolean representing whether the user has two factor enabled on their account.
+</ResponseField>
+
+<ResponseField name="locale" type="str">
+  The user's chosen language option.
+</ResponseField>
+
+<ResponseField name="verified" type="bool">
+  A boolean representing whether the email on this account has been verified.
+</ResponseField>
+
+<ResponseField name="email" type="str">
+  User's email ID.
+</ResponseField>
+
+<ResponseField name="flags" type="int">
+  An integer representing the [user flags](https://discordapp.com/developers/docs/resources/user#user-object-user-flags).
+</ResponseField>
+
+<ResponseField name="premium_type" type="int">
+  An integer representing the [type of nitro subscription](https://discordapp.com/developers/docs/resources/user#user-object-premium-types).
+</ResponseField>
+
+<ResponseField name="connections" type="list">
+  A list of `UserConnection` instances. These are cached and this list might be empty.
+</ResponseField>
+
+## Properties
+
+### name
+
+An alias to the username attribute.
+
+```python
+@property
+name -> str
+```
+
+### guilds
+
+A cached mapping of user's guild ID to `Guild` objects. The guilds are cached when the first API call for guilds is requested so it might be an empty list.
+
+```python
+@property
+guilds -> list
+```
+
+**Returns:** List of `flask_discord.Guild` objects.
+
+### avatar_url
+
+A property returning direct URL to user's avatar.
+
+```python
+@property
+avatar_url -> str
+```
+
+**Returns:** URL string or `None` if user has no avatar.
+
+### default_avatar_url
+
+A property which returns the default avatar URL as when user doesn't have any avatar set.
+
+```python
+@property
+default_avatar_url -> str
+```
+
+### is_avatar_animated
+
+A boolean representing if avatar of user is animated. Meaning user has GIF avatar.
+
+```python
+@property
+is_avatar_animated -> bool
+```
+
+## Methods
+
+### fetch_from_api
+
+A class method which returns an instance of this model by implicitly making an API call to Discord. The user returned from API will always be cached and updated in internal cache.
+
+```python
+@classmethod
+fetch_from_api(
+    guilds: bool = False,
+    connections: bool = False
+) -> User
+```
+
+<ParamField path="guilds" type="bool" default="False">
+  A boolean indicating if user's guilds should be cached or not. If chose to not cache, user's guilds can always be obtained from `fetch_guilds()`.
+</ParamField>
+
+<ParamField path="connections" type="bool" default="False">
+  A boolean indicating if user's connections should be cached or not. If chose to not cache, user's connections can always be obtained from `fetch_connections()`.
+</ParamField>
+
+**Returns:** An instance of `User`.
+
+### get_from_cache
+
+A class method which returns an instance of this model if it exists in internal cache.
+
+```python
+@classmethod
+get_from_cache() -> User | None
+```
+
+**Returns:** A `User` instance if it exists in internal cache, `None` otherwise.
+
+### add_to_guild
+
+Method to add user to the guild, provided OAuth2 session has already been created with `guilds.join` scope.
+
+```python
+add_to_guild(guild_id: int) -> dict
+```
+
+<ParamField path="guild_id" type="int" required>
+  The ID of the guild you want this user to be added.
+</ParamField>
+
+**Returns:** A dict of guild member object. Returns an empty dict if user is already present in the guild.
+
+**Raises:** `flask_discord.Unauthorized` if current user is not authorized.
+
+### fetch_guilds
+
+A method which makes an API call to Discord to get user's guilds. It prepares the internal guilds cache and returns list of all guilds the user is member of.
+
+```python
+fetch_guilds() -> list
+```
+
+**Returns:** List of `flask_discord.Guild` instances.
+
+### fetch_connections
+
+A method which makes an API call to Discord to get user's connections. It prepares the internal connection cache and returns list of all connection instances.
+
+```python
+fetch_connections() -> list
+```
+
+**Returns:** A list of `flask_discord.UserConnection` instances.
+
+## Operations
+
+### Equality Comparison
+
+```python
+x == y  # Checks if two users are the same
+x != y  # Checks if two users are not the same
+```
+
+### String Representation
+
+```python
+str(user)  # Returns "username#discriminator"
+```
+
+## Example
+
+```python
+from flask_discord import DiscordOAuth2Session
+
+# Fetch user from API
+user = discord.fetch_user()
+
+print(user.username)  # "JohnDoe"
+print(user.id)  # 1234567890
+print(str(user))  # "JohnDoe#1234"
+print(user.avatar_url)  # "https://cdn.discordapp.com/avatars/..."
+
+# Fetch user's guilds
+guilds = user.fetch_guilds()
+```

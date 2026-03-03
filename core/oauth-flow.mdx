@@ -1,0 +1,248 @@
+---
+title: OAuth2 Flow
+description: Understanding the Discord OAuth2 authorization flow in Flask-Discord
+---
+
+Flask-Discord implements the OAuth2 authorization code grant flow to authenticate users with Discord. This page explains how the OAuth2 flow works and how to implement it in your application.
+
+## Overview
+
+The OAuth2 flow consists of two main steps:
+
+<Steps>
+  <Step title="Create OAuth2 Session">
+    Redirect users to Discord's authorization page using `create_session()`
+  </Step>
+  <Step title="Handle Callback">
+    Process the authorization code and retrieve the access token using `callback()`
+  </Step>
+</Steps>
+
+## Creating an OAuth2 Session
+
+The `create_session()` method initiates the OAuth2 flow by redirecting users to Discord's authorization page.
+
+### Basic Usage
+
+```python
+from flask import Flask
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.config["DISCORD_CLIENT_ID"] = "your_client_id"
+app.config["DISCORD_CLIENT_SECRET"] = "your_client_secret"
+app.config["DISCORD_REDIRECT_URI"] = "http://localhost:5000/callback"
+app.config["SECRET_KEY"] = "your_secret_key"
+
+discord = DiscordOAuth2Session(app)
+
+@app.route("/login")
+def login():
+    return discord.create_session()
+```
+
+### Customizing Scopes
+
+You can specify which Discord OAuth2 scopes to request:
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify", "email", "guilds"])
+```
+
+<Info>
+If no scopes are specified, Flask-Discord uses the default scopes: `identify`, `email`, `guilds`, and `guilds.join`.
+</Info>
+
+### Passing Custom Data
+
+You can pass custom data through the OAuth2 flow using the `data` parameter. This data will be available in your callback view:
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(
+        data={"redirect_to": "/dashboard", "user_type": "premium"}
+    )
+```
+
+The data is securely encoded using JWT and signed with your application's `SECRET_KEY`.
+
+### Controlling Authorization Prompt
+
+By default, Discord will always prompt users to authorize your application. You can disable this for returning users:
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(prompt=False)
+```
+
+<Warning>
+Implicit grant (prompt=False) cannot be used with passthrough scopes like `bot` or `webhook.incoming`. These scopes require explicit authorization.
+</Warning>
+
+### Adding Bot to Guilds
+
+When using the `bot` scope, you can specify permissions for your bot:
+
+```python
+from flask_discord.types import Permissions
+
+@app.route("/add-bot")
+def add_bot():
+    # Create permissions object
+    perms = Permissions(
+        send_messages=True,
+        manage_messages=True,
+        embed_links=True
+    )
+    
+    return discord.create_session(
+        scope=["bot"],
+        permissions=perms
+    )
+```
+
+You can also use an integer for permissions:
+
+```python
+@app.route("/add-bot")
+def add_bot():
+    # Administrator permission
+    return discord.create_session(
+        scope=["bot"],
+        permissions=8
+    )
+```
+
+### Additional Parameters
+
+You can pass additional query parameters to customize the OAuth flow:
+
+```python
+@app.route("/add-bot")
+def add_bot():
+    return discord.create_session(
+        scope=["bot"],
+        permissions=0,
+        disable_guild_select=True  # Pre-select a guild if user only has one
+    )
+```
+
+## Handling the Callback
+
+After users authorize your application, Discord redirects them to your callback URL with an authorization code. The `callback()` method exchanges this code for an access token.
+
+### Basic Callback Handler
+
+```python
+@app.route("/callback")
+def callback():
+    discord.callback()
+    return "Authorization successful!"
+```
+
+### Retrieving Custom Data
+
+The `callback()` method returns the custom data you passed in `create_session()`:
+
+```python
+@app.route("/callback")
+def callback():
+    data = discord.callback()
+    redirect_to = data.get("redirect_to", "/")
+    user_type = data.get("user_type")
+    
+    # Use the custom data
+    return redirect(redirect_to)
+```
+
+<Note>
+The callback method automatically saves the authorization token to the Flask session. You don't need to manually handle token storage.
+</Note>
+
+### Error Handling
+
+Handle authorization errors gracefully:
+
+```python
+from flask_discord.exceptions import AccessDenied, HttpException
+
+@app.route("/callback")
+def callback():
+    try:
+        data = discord.callback()
+        return redirect("/dashboard")
+    except AccessDenied:
+        return "You denied the authorization request.", 403
+    except HttpException as e:
+        return f"Authorization failed: {e}", 500
+```
+
+## Complete Example
+
+Here's a complete OAuth2 flow implementation:
+
+```python
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session
+from flask_discord.exceptions import AccessDenied
+
+app = Flask(__name__)
+app.config["DISCORD_CLIENT_ID"] = "your_client_id"
+app.config["DISCORD_CLIENT_SECRET"] = "your_client_secret"
+app.config["DISCORD_REDIRECT_URI"] = "http://localhost:5000/callback"
+app.config["SECRET_KEY"] = "your_secret_key"
+
+discord = DiscordOAuth2Session(app)
+
+@app.route("/")
+def index():
+    if discord.authorized:
+        return redirect(url_for("dashboard"))
+    return '<a href="/login">Login with Discord</a>'
+
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify", "email", "guilds"])
+
+@app.route("/callback")
+def callback():
+    try:
+        discord.callback()
+        return redirect(url_for("dashboard"))
+    except AccessDenied:
+        return redirect(url_for("index"))
+
+@app.route("/dashboard")
+def dashboard():
+    if not discord.authorized:
+        return redirect(url_for("login"))
+    
+    user = discord.fetch_user()
+    return f"Hello {user.name}!"
+
+if __name__ == "__main__":
+    app.run()
+```
+
+## State Management
+
+Flask-Discord automatically manages OAuth2 state to prevent CSRF attacks:
+
+1. When `create_session()` is called, a state token is generated and stored in the Flask session
+2. The state is included in the authorization URL
+3. When Discord redirects to your callback, the state is verified
+4. Custom data is encoded in the state using JWT with your `SECRET_KEY`
+
+<Info>
+The state token includes a random secret to ensure uniqueness and security. Make sure your Flask application has a strong `SECRET_KEY` configured.
+</Info>
+
+## Next Steps
+
+- Learn about [Session Management](/core/session-management) to customize token storage
+- Explore [OAuth2 Scopes](/core/scopes) to understand available permissions
+- Review [Permissions](/core/permissions) for bot authorization

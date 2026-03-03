@@ -1,0 +1,73 @@
+---
+title: "Decorators"
+description: "Utility decorators for Flask-Discord authorization"
+---
+
+## requires_authorization
+
+A decorator for Flask views which raises exception `flask_discord.Unauthorized` if the user is not authorized from Discord OAuth2.
+
+### Usage
+
+```python
+from flask_discord import requires_authorization
+
+@requires_authorization
+def view(*args, **kwargs):
+    # Your view logic here
+    pass
+```
+
+### Description
+
+This decorator checks if the current user has a valid Discord OAuth2 authorization token before allowing access to the decorated view. If the user is not authorized, it raises `flask_discord.Unauthorized` exception.
+
+### Raises
+
+- `flask_discord.Unauthorized`: If current user is not authorized via Discord OAuth2.
+
+## Example
+
+```python
+from flask import Flask
+from flask_discord import DiscordOAuth2Session, requires_authorization
+
+app = Flask(__name__)
+app.config["SECRET_KEY"] = "your-secret-key"
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = "your-client-secret"
+app.config["DISCORD_REDIRECT_URI"] = "http://localhost:5000/callback"
+
+discord = DiscordOAuth2Session(app)
+
+@app.route("/profile")
+@requires_authorization
+def profile():
+    user = discord.fetch_user()
+    return f"<h1>Hello {user.name}!</h1>"
+
+@app.route("/guilds")
+@requires_authorization
+def guilds():
+    guilds = discord.fetch_guilds()
+    return f"<h1>You are in {len(guilds)} guilds</h1>"
+```
+
+<Note>
+  This decorator should be applied to views that require the user to be authenticated via Discord OAuth2.
+</Note>
+
+<Warning>
+  Make sure to handle the `Unauthorized` exception in your application error handlers to provide a good user experience.
+</Warning>
+
+## Error Handling
+
+```python
+from flask import redirect, url_for
+from flask_discord.exceptions import Unauthorized
+
+@app.errorhandler(Unauthorized)
+def handle_unauthorized(e):
+    return redirect(url_for("login"))
+```

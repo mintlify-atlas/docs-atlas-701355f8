@@ -1,0 +1,260 @@
+---
+title: Fetching User Data
+description: Learn how to fetch and work with Discord user data in Flask-Discord
+---
+
+## Overview
+
+After a user authorizes your application, you can fetch their Discord profile information and connections. Flask-Discord provides simple methods to retrieve this data with built-in caching.
+
+## Fetching User Information
+
+### Basic User Fetch
+
+Use `fetch_user()` to get the current authenticated user's information:
+
+```python app.py
+from flask import Flask
+from flask_discord import DiscordOAuth2Session, requires_authorization
+
+@app.route("/me/")
+@requires_authorization
+def me():
+    user = discord.fetch_user()
+    return f"""
+    <h1>{user.name}#{user.discriminator}</h1>
+    <img src="{user.avatar_url or user.default_avatar_url}" />
+    <p>Email: {user.email}</p>
+    <p>ID: {user.id}</p>
+    """
+```
+
+<Note>
+The `fetch_user()` method returns user data from the internal cache if it exists, otherwise it makes an API call to Discord.
+</Note>
+
+### User Object Attributes
+
+The `User` object provides access to various Discord user properties:
+
+```python
+user = discord.fetch_user()
+
+# Basic Information
+user.id              # int: Discord user ID
+user.username        # str: Username
+user.name            # str: Alias for username
+user.discriminator   # str: 4-digit discriminator
+user.avatar_hash     # str: Avatar hash
+user.email           # str: User's email (requires 'email' scope)
+
+# Account Status
+user.verified        # bool: Email verified status
+user.mfa_enabled     # bool: Two-factor authentication enabled
+user.bot             # bool: Whether the account is a bot
+
+# Profile Information
+user.locale          # str: User's language choice
+user.premium_type    # int: Nitro subscription type
+user.flags           # int: User flags
+
+# Avatar URLs
+user.avatar_url          # str: Direct URL to user's avatar
+user.default_avatar_url  # str: Default avatar URL
+user.is_avatar_animated  # bool: Whether avatar is animated (GIF)
+```
+
+## User Scopes Required
+
+Different user attributes require different OAuth2 scopes:
+
+| Scope | Attributes Unlocked |
+|-------|--------------------|
+| `identify` | `id`, `username`, `discriminator`, `avatar`, `bot`, `flags`, `premium_type`, `locale` |
+| `email` | `email`, `verified` |
+
+```python app.py
+@app.route("/login/")
+def login():
+    # Request both identify and email scopes
+    return discord.create_session(scope=["identify", "email"])
+```
+
+## Fetching User Connections
+
+### Basic Connection Fetch
+
+Retrieve the user's connected accounts (Twitch, YouTube, Spotify, etc.):
+
+```python app.py
+@app.route("/me/connections/")
+@requires_authorization
+def my_connections():
+    user = discord.fetch_user()
+    connections = discord.fetch_connections()
+    
+    html = f"<h1>{user.name}'s Connections</h1>"
+    for connection in connections:
+        html += f"<p>{connection.name} - {connection.type}</p>"
+    
+    return html
+```
+
+<Warning>
+Fetching connections requires the `connections` scope:
+```python
+discord.create_session(scope=["identify", "connections"])
+```
+</Warning>
+
+### UserConnection Attributes
+
+Each connection object provides:
+
+```python
+connection.id           # str: Connection account ID
+connection.name         # str: Username on connected platform
+connection.type         # str: Platform type (twitch, youtube, etc.)
+connection.verified     # bool: Whether connection is verified
+connection.revoked      # bool: Whether connection has been revoked
+connection.visibility   # int: Visibility setting
+```
+
+## Working with User Data
+
+### Display User Profile
+
+<CodeGroup>
+
+```python Simple Profile
+@app.route("/profile/")
+@requires_authorization
+def profile():
+    user = discord.fetch_user()
+    
+    return f"""
+    <html>
+    <head><title>{user.name}</title></head>
+    <body>
+        <img src="{user.avatar_url or user.default_avatar_url}" />
+        <h1>{user.name}#{user.discriminator}</h1>
+        <p>Animated Avatar: {user.is_avatar_animated}</p>
+        <p>Locale: {user.locale}</p>
+    </body>
+    </html>
+    """
+```
+
+```python With Connections
+@app.route("/profile/full/")
+@requires_authorization
+def full_profile():
+    user = discord.fetch_user()
+    connections = discord.fetch_connections()
+    
+    profile_html = f"""
+    <h1>{user.name}#{user.discriminator}</h1>
+    <img src="{user.avatar_url or user.default_avatar_url}" />
+    <h2>Email: {user.email}</h2>
+    """
+    
+    if connections:
+        profile_html += "<h2>Connected Accounts:</h2><ul>"
+        for conn in connections:
+            profile_html += f"<li>{conn.type}: {conn.name}</li>"
+        profile_html += "</ul>"
+    
+    return profile_html
+```
+
+</CodeGroup>
+
+### Comparing Users
+
+User objects support equality comparison:
+
+```python
+user1 = discord.fetch_user()
+user2 = discord.fetch_user()
+
+if user1 == user2:
+    print("Same user")
+
+if user1 != user2:
+    print("Different users")
+
+# String representation
+print(str(user1))  # Output: Username#1234
+```
+
+## Caching Behavior
+
+Flask-Discord implements intelligent caching:
+
+<Steps>
+
+### First Call
+The first call to `fetch_user()` makes an API request to Discord and stores the result in the internal cache.
+
+### Subsequent Calls
+Later calls to `fetch_user()` return the cached user object without making additional API calls.
+
+### Cache Invalidation
+The cache is cleared when the user logs out via `discord.revoke()`.
+
+</Steps>
+
+```python
+# First call - makes API request
+user = discord.fetch_user()
+
+# Second call - returns from cache (no API call)
+user_again = discord.fetch_user()
+
+# Clear the cache
+discord.revoke()
+
+# Next call will make a new API request
+user_fresh = discord.fetch_user()
+```
+
+<Tip>
+Connections are also cached on the User object. Call `discord.fetch_connections()` to retrieve cached connections if they exist, or fetch fresh data from the API.
+</Tip>
+
+## Protecting Routes
+
+Use the `@requires_authorization` decorator to ensure only authenticated users can access routes:
+
+```python
+from flask_discord import requires_authorization
+
+@app.route("/secret/")
+@requires_authorization
+def secret():
+    user = discord.fetch_user()
+    return f"Secret data for {user.name}"
+```
+
+## Error Handling
+
+```python
+from flask_discord import Unauthorized
+
+@app.route("/profile/")
+def profile():
+    if not discord.authorized:
+        return redirect(url_for("login"))
+    
+    try:
+        user = discord.fetch_user()
+        return f"<h1>{user.name}</h1>"
+    except Unauthorized:
+        return redirect(url_for("login"))
+```
+
+## Next Steps
+
+- [Working with Guilds](/guides/working-with-guilds) - Fetch user's Discord servers
+- [Bot Integration](/guides/bot-integration) - Add bot functionality
+- [Custom Session Handling](/guides/custom-session-handling) - Implement server-side sessions

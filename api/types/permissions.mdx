@@ -1,0 +1,378 @@
+---
+title: "Permissions Type"
+description: "Discord permissions bit field wrapper for Flask-Discord"
+---
+
+## Permissions
+
+Wraps up the Discord permission value. The properties provided are two-way. You can set and retrieve individual bits using the properties as if they were regular bools. This allows you to edit permissions.
+
+### Constructor
+
+```python
+Permissions(permissions: int = 0, **kwargs)
+```
+
+<ParamField path="permissions" type="int" default="0">
+  The raw permission value as an integer. This value is a bit array field of a 53-bit integer representing the currently available permissions.
+</ParamField>
+
+<ParamField path="**kwargs">
+  Keyword arguments to initialize specific permissions. Names must be equivalent to the permission properties.
+</ParamField>
+
+### Attributes
+
+<ResponseField name="value" type="int">
+  The raw value. This value is a bit array field of a 53-bit integer representing the currently available permissions. You should query permissions via the properties rather than using this raw value.
+</ResponseField>
+
+## Factory Methods
+
+### none
+
+A factory method that creates a `Permissions` with all permissions set to `False`.
+
+```python
+@classmethod
+none() -> Permissions
+```
+
+### all
+
+A factory method that creates a `Permissions` with all permissions set to `True`.
+
+```python
+@classmethod
+all() -> Permissions
+```
+
+### all_channel
+
+A `Permissions` with all channel-specific permissions set to `True` and the guild-specific ones set to `False`.
+
+```python
+@classmethod
+all_channel() -> Permissions
+```
+
+### general
+
+A factory method that creates a `Permissions` with all "General" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+general() -> Permissions
+```
+
+### membership
+
+A factory method that creates a `Permissions` with all "Membership" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+membership() -> Permissions
+```
+
+### text
+
+A factory method that creates a `Permissions` with all "Text" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+text() -> Permissions
+```
+
+### voice
+
+A factory method that creates a `Permissions` with all "Voice" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+voice() -> Permissions
+```
+
+### stage
+
+A factory method that creates a `Permissions` with all "Stage Channel" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+stage() -> Permissions
+```
+
+### stage_moderator
+
+A factory method that creates a `Permissions` with all "Stage Moderator" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+stage_moderator() -> Permissions
+```
+
+### advanced
+
+A factory method that creates a `Permissions` with all "Advanced" permissions from the official Discord UI set to `True`.
+
+```python
+@classmethod
+advanced() -> Permissions
+```
+
+## Methods
+
+### update
+
+Bulk updates this permission object. Allows you to set multiple attributes by using keyword arguments.
+
+```python
+update(**kwargs)
+```
+
+<ParamField path="**kwargs">
+  A list of key/value pairs to bulk update permissions with. The names must be equivalent to the permission properties. Extraneous key/value pairs will be silently ignored.
+</ParamField>
+
+### is_subset
+
+Returns `True` if self has the same or fewer permissions as other.
+
+```python
+is_subset(other: Permissions) -> bool
+```
+
+### is_superset
+
+Returns `True` if self has the same or more permissions as other.
+
+```python
+is_superset(other: Permissions) -> bool
+```
+
+### is_strict_subset
+
+Returns `True` if the permissions on other are a strict subset of those on self.
+
+```python
+is_strict_subset(other: Permissions) -> bool
+```
+
+### is_strict_superset
+
+Returns `True` if the permissions on other are a strict superset of those on self.
+
+```python
+is_strict_superset(other: Permissions) -> bool
+```
+
+## Permission Flags
+
+All permission flags are boolean properties that can be get and set:
+
+### Administrator Permissions
+
+<ResponseField name="administrator" type="bool">
+  Returns `True` if a user is an administrator. This role overrides all other permissions and bypasses all channel-specific overrides.
+</ResponseField>
+
+### General Permissions
+
+<ResponseField name="create_instant_invite" type="bool">
+  Returns `True` if the user can create instant invites.
+</ResponseField>
+
+<ResponseField name="manage_channels" type="bool">
+  Returns `True` if a user can edit, delete, or create channels in the guild. This also corresponds to the "Manage Channel" channel-specific override.
+</ResponseField>
+
+<ResponseField name="manage_guild" type="bool">
+  Returns `True` if a user can edit guild properties.
+</ResponseField>
+
+<ResponseField name="view_audit_log" type="bool">
+  Returns `True` if a user can view the guild's audit log.
+</ResponseField>
+
+<ResponseField name="view_guild_insights" type="bool">
+  Returns `True` if a user can view the guild's insights.
+</ResponseField>
+
+### Membership Permissions
+
+<ResponseField name="kick_members" type="bool">
+  Returns `True` if the user can kick users from the guild.
+</ResponseField>
+
+<ResponseField name="ban_members" type="bool">
+  Returns `True` if a user can ban users from the guild.
+</ResponseField>
+
+<ResponseField name="change_nickname" type="bool">
+  Returns `True` if a user can change their nickname in the guild.
+</ResponseField>
+
+<ResponseField name="manage_nicknames" type="bool">
+  Returns `True` if a user can change other user's nickname in the guild.
+</ResponseField>
+
+### Text Channel Permissions
+
+<ResponseField name="read_messages" type="bool">
+  Returns `True` if a user can read messages from all or specific text channels.
+</ResponseField>
+
+<ResponseField name="view_channel" type="bool">
+  An alias for `read_messages`.
+</ResponseField>
+
+<ResponseField name="send_messages" type="bool">
+  Returns `True` if a user can send messages from all or specific text channels.
+</ResponseField>
+
+<ResponseField name="send_tts_messages" type="bool">
+  Returns `True` if a user can send TTS messages from all or specific text channels.
+</ResponseField>
+
+<ResponseField name="manage_messages" type="bool">
+  Returns `True` if a user can delete or pin messages in a text channel.
+</ResponseField>
+
+<ResponseField name="embed_links" type="bool">
+  Returns `True` if a user's messages will automatically be embedded by Discord.
+</ResponseField>
+
+<ResponseField name="attach_files" type="bool">
+  Returns `True` if a user can send files in their messages.
+</ResponseField>
+
+<ResponseField name="read_message_history" type="bool">
+  Returns `True` if a user can read a text channel's previous messages.
+</ResponseField>
+
+<ResponseField name="mention_everyone" type="bool">
+  Returns `True` if a user's @everyone or @here will mention everyone in the text channel.
+</ResponseField>
+
+<ResponseField name="add_reactions" type="bool">
+  Returns `True` if a user can add reactions to messages.
+</ResponseField>
+
+<ResponseField name="external_emojis" type="bool">
+  Returns `True` if a user can use emojis from other guilds.
+</ResponseField>
+
+<ResponseField name="use_external_emojis" type="bool">
+  An alias for `external_emojis`.
+</ResponseField>
+
+<ResponseField name="use_slash_commands" type="bool">
+  Returns `True` if a user can use slash commands.
+</ResponseField>
+
+### Voice Channel Permissions
+
+<ResponseField name="connect" type="bool">
+  Returns `True` if a user can connect to a voice channel.
+</ResponseField>
+
+<ResponseField name="speak" type="bool">
+  Returns `True` if a user can speak in a voice channel.
+</ResponseField>
+
+<ResponseField name="mute_members" type="bool">
+  Returns `True` if a user can mute other users.
+</ResponseField>
+
+<ResponseField name="deafen_members" type="bool">
+  Returns `True` if a user can deafen other users.
+</ResponseField>
+
+<ResponseField name="move_members" type="bool">
+  Returns `True` if a user can move users between other voice channels.
+</ResponseField>
+
+<ResponseField name="use_voice_activation" type="bool">
+  Returns `True` if a user can use voice activation in voice channels.
+</ResponseField>
+
+<ResponseField name="priority_speaker" type="bool">
+  Returns `True` if a user can be more easily heard while talking.
+</ResponseField>
+
+<ResponseField name="stream" type="bool">
+  Returns `True` if a user can stream in a voice channel.
+</ResponseField>
+
+### Stage Channel Permissions
+
+<ResponseField name="request_to_speak" type="bool">
+  Returns `True` if a user can request to speak in a stage channel.
+</ResponseField>
+
+### Advanced Permissions
+
+<ResponseField name="manage_roles" type="bool">
+  Returns `True` if a user can create or edit roles less than their role's position. This also corresponds to the "Manage Permissions" channel-specific override.
+</ResponseField>
+
+<ResponseField name="manage_permissions" type="bool">
+  An alias for `manage_roles`.
+</ResponseField>
+
+<ResponseField name="manage_webhooks" type="bool">
+  Returns `True` if a user can create, edit, or delete webhooks.
+</ResponseField>
+
+<ResponseField name="manage_emojis" type="bool">
+  Returns `True` if a user can create, edit, or delete emojis.
+</ResponseField>
+
+## Operations
+
+```python
+x == y   # Checks if two permissions are equal
+x != y   # Checks if two permissions are not equal
+x <= y   # Checks if a permission is a subset of another permission
+x >= y   # Checks if a permission is a superset of another permission
+x < y    # Checks if a permission is a strict subset of another permission
+x > y    # Checks if a permission is a strict superset of another permission
+hash(x)  # Return the permission's hash
+iter(x)  # Returns an iterator of (perm, value) pairs
+```
+
+## Example
+
+```python
+from flask_discord.types import Permissions
+
+# Create permissions from integer value
+perms = Permissions(0)
+
+# Set individual permissions
+perms.send_messages = True
+perms.read_messages = True
+
+# Create with kwargs
+perms = Permissions(send_messages=True, read_messages=True)
+
+# Use factory methods
+admin_perms = Permissions.all()
+no_perms = Permissions.none()
+text_perms = Permissions.text()
+
+# Check permissions
+if perms.administrator:
+    print("User is admin")
+
+# Update multiple permissions at once
+perms.update(manage_messages=True, manage_channels=True)
+
+# Use in create_session for bot invites
+from flask_discord import DiscordOAuth2Session
+
+bot_perms = Permissions(administrator=True)
+discord.create_session(
+    scope=["bot"],
+    permissions=bot_perms
+)
+```

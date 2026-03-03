@@ -1,0 +1,382 @@
+---
+title: Discord OAuth2 Scopes
+description: Understanding and using Discord OAuth2 scopes in Flask-Discord
+---
+
+Discord OAuth2 scopes determine what resources and data your application can access on behalf of users. This page explains all available scopes and how to use them effectively.
+
+## What are Scopes?
+
+Scopes are permissions that users grant to your application during the OAuth2 authorization process. Each scope allows access to specific Discord resources or actions.
+
+<Info>
+Users see which scopes your application requests on the Discord authorization page. Only request scopes you actually need to maintain user trust.
+</Info>
+
+## Available Scopes
+
+Flask-Discord supports all Discord OAuth2 scopes defined in `configs.py`:
+
+### Identity and User Data
+
+<Accordion title="identify">
+**Access basic user information**
+
+Allows your application to access:
+- User ID
+- Username
+- Avatar
+- Discriminator
+- Public flags
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify"])
+
+@app.route("/profile")
+def profile():
+    user = discord.fetch_user()
+    return f"Username: {user.name}#{user.discriminator}"
+```
+
+This is the most basic scope and should be included in almost all applications.
+</Accordion>
+
+<Accordion title="email">
+**Access user's email address**
+
+Allows your application to access the user's email address.
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify", "email"])
+
+@app.route("/profile")
+def profile():
+    user = discord.fetch_user()
+    return f"Email: {user.email}"
+```
+
+<Note>
+The email may be `None` if the user has not verified their email address with Discord.
+</Note>
+</Accordion>
+
+### Guild and Server Access
+
+<Accordion title="guilds">
+**Access user's guild list**
+
+Allows your application to see which guilds (servers) the user is a member of.
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify", "guilds"])
+
+@app.route("/servers")
+def servers():
+    guilds = discord.fetch_guilds()
+    return render_template("guilds.html", guilds=guilds)
+```
+
+This scope is essential for applications that interact with Discord servers.
+</Accordion>
+
+<Accordion title="guilds.join">
+**Add user to guilds**
+
+Allows your application to add the user to a guild. Requires a bot token.
+
+```python
+app.config["DISCORD_BOT_TOKEN"] = "your_bot_token"
+
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify", "guilds.join"])
+
+# Later, you can add the user to a guild
+# This requires additional implementation with Discord API
+```
+
+<Warning>
+This scope requires your bot to already be in the target guild with CREATE_INSTANT_INVITE permission.
+</Warning>
+</Accordion>
+
+### Connections
+
+<Accordion title="connections">
+**Access user's connected accounts**
+
+Allows your application to see the user's connected third-party accounts (Twitch, YouTube, etc.).
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(scope=["identify", "connections"])
+
+@app.route("/connections")
+def connections():
+    user_connections = discord.fetch_connections()
+    return render_template("connections.html", connections=user_connections)
+```
+</Accordion>
+
+### Bot and Integration
+
+<Accordion title="bot">
+**Add bot to guilds**
+
+Allows your application to add your bot to a guild with specified permissions. This is a passthrough scope.
+
+```python
+from flask_discord.types import Permissions
+
+@app.route("/add-bot")
+def add_bot():
+    perms = Permissions(
+        send_messages=True,
+        manage_messages=True,
+        embed_links=True
+    )
+    return discord.create_session(
+        scope=["bot"],
+        permissions=perms,
+        prompt=True  # Must be True for bot scope
+    )
+```
+
+<Warning>
+The `bot` scope is a passthrough scope and requires `prompt=True`. You cannot use implicit grant with this scope.
+</Warning>
+</Accordion>
+
+<Accordion title="webhook.incoming">
+**Create incoming webhooks**
+
+Allows your application to create incoming webhooks. This is a passthrough scope.
+
+```python
+@app.route("/add-webhook")
+def add_webhook():
+    return discord.create_session(
+        scope=["webhook.incoming"],
+        prompt=True  # Must be True for passthrough scopes
+    )
+```
+</Accordion>
+
+### RPC and Rich Presence
+
+<Accordion title="rpc">
+**RPC access**
+
+Allows your application to control the user's Discord client via RPC.
+
+<Note>
+RPC scopes are rarely used in web applications. They're primarily for desktop applications that integrate with Discord's Rich Presence.
+</Note>
+</Accordion>
+
+<Accordion title="rpc.api">
+**RPC API access**
+
+Allows access to RPC API endpoints.
+</Accordion>
+
+<Accordion title="rpc.notifications.read">
+**Read RPC notifications**
+
+Allows your application to read notification data via RPC.
+</Accordion>
+
+### Direct Messages
+
+<Accordion title="messages.read">
+**Read user's messages**
+
+Allows your application to read the user's messages.
+
+<Warning>
+This is a sensitive scope. Only request it if absolutely necessary and clearly explain why to users.
+</Warning>
+</Accordion>
+
+<Accordion title="gdm.join">
+**Join group DMs**
+
+Allows your application to join users to group DMs.
+</Accordion>
+
+## Default Scopes
+
+Flask-Discord uses these default scopes if none are specified:
+
+```python
+DISCORD_OAUTH_DEFAULT_SCOPES = [
+    "identify", "email", "guilds", "guilds.join"
+]
+```
+
+To use default scopes:
+
+```python
+@app.route("/login")
+def login():
+    # Uses default scopes
+    return discord.create_session()
+```
+
+## Passthrough Scopes
+
+Passthrough scopes require explicit user authorization and cannot use implicit grant:
+
+```python
+DISCORD_PASSTHROUGH_SCOPES = [
+    "bot", "webhook.incoming"
+]
+```
+
+Attempting to use passthrough scopes with `prompt=False` raises a `ValueError`:
+
+```python
+@app.route("/add-bot")
+def add_bot():
+    # This will raise ValueError
+    return discord.create_session(
+        scope=["bot"],
+        prompt=False  # ❌ Not allowed with bot scope
+    )
+```
+
+## Combining Scopes
+
+You can request multiple scopes in a single authorization:
+
+```python
+@app.route("/login")
+def login():
+    return discord.create_session(scope=[
+        "identify",
+        "email",
+        "guilds",
+        "connections"
+    ])
+```
+
+<Note>
+Each scope appears as a separate permission on Discord's authorization page. Requesting many scopes may overwhelm users.
+</Note>
+
+## Dynamic Scopes
+
+You can determine scopes dynamically based on user actions:
+
+```python
+@app.route("/login")
+def login():
+    # Get scope from query parameter
+    requested_scope = request.args.get("scope", "")
+    
+    if requested_scope:
+        scopes = requested_scope.split()
+    else:
+        scopes = ["identify", "email"]
+    
+    return discord.create_session(scope=scopes)
+```
+
+## Scope Validation
+
+Flask-Discord uses all available scopes for reference:
+
+```python
+DISCORD_OAUTH_ALL_SCOPES = [
+    "bot", "connections", "email", "identify", "guilds", "guilds.join",
+    "gdm.join", "messages.read", "rpc", "rpc.api", "rpc.notifications.read",
+    "webhook.incoming"
+]
+```
+
+You can validate scopes against this list:
+
+```python
+from flask_discord.configs import DISCORD_OAUTH_ALL_SCOPES
+
+def validate_scopes(scopes):
+    for scope in scopes:
+        if scope not in DISCORD_OAUTH_ALL_SCOPES:
+            raise ValueError(f"Invalid scope: {scope}")
+    return True
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Request minimum necessary scopes">
+    Only request scopes your application actually needs. This builds user trust and improves authorization rates.
+  </Step>
+  <Step title="Explain why you need each scope">
+    On your login page, explain what each scope is used for:
+    
+    ```html
+    <p>We request these permissions:</p>
+    <ul>
+      <li><strong>identify</strong> - To show your username and avatar</li>
+      <li><strong>email</strong> - To send you notifications</li>
+      <li><strong>guilds</strong> - To display your servers</li>
+    </ul>
+    ```
+  </Step>
+  <Step title="Handle scope denial gracefully">
+    Users may deny some scopes. Handle this in your callback:
+    
+    ```python
+    @app.route("/callback")
+    def callback():
+        try:
+            discord.callback()
+            user = discord.fetch_user()
+            if not user.email:
+                flash("Email access was denied. Some features may be limited.")
+            return redirect("/dashboard")
+        except AccessDenied:
+            return "Authorization was denied", 403
+    ```
+  </Step>
+  <Step title="Use default scopes for common cases">
+    The default scopes cover most use cases. Override them only when necessary.
+  </Step>
+</Steps>
+
+## Common Scope Combinations
+
+### Basic User Authentication
+```python
+scopes = ["identify", "email"]
+```
+
+### Server Management Application
+```python
+scopes = ["identify", "email", "guilds"]
+```
+
+### Bot Invitation with Permissions
+```python
+scopes = ["bot"]
+# Remember to include permissions parameter
+```
+
+### Full User Profile
+```python
+scopes = ["identify", "email", "guilds", "connections"]
+```
+
+## Next Steps
+
+- Learn about [OAuth2 Flow](/core/oauth-flow) to implement authentication
+- Explore [Permissions](/core/permissions) for bot authorization
+- Review [Session Management](/core/session-management) for token handling

@@ -1,0 +1,105 @@
+---
+title: "Guild Model"
+description: "Class representing a Discord guild (server) in Flask-Discord"
+---
+
+## Guild
+
+Class representing Discord Guild the user is part of.
+
+### Constructor
+
+```python
+Guild(payload: dict)
+```
+
+<ParamField path="payload" type="dict" required>
+  Raw Discord API guild payload.
+</ParamField>
+
+## Attributes
+
+<ResponseField name="id" type="int">
+  Discord ID of the guild.
+</ResponseField>
+
+<ResponseField name="name" type="str">
+  Name of the guild.
+</ResponseField>
+
+<ResponseField name="icon_hash" type="str">
+  Hash of guild's icon.
+</ResponseField>
+
+<ResponseField name="is_owner" type="bool">
+  Boolean determining if current user is owner of the guild or not.
+</ResponseField>
+
+<ResponseField name="permissions" type="Permissions">
+  An instance of `flask_discord.types.Permissions` representing permissions of current user in the guild.
+</ResponseField>
+
+## Properties
+
+### icon_url
+
+A property returning direct URL to the guild's icon. Returns `None` if guild has no icon set.
+
+```python
+@property
+icon_url -> str | None
+```
+
+## Methods
+
+### fetch_from_api
+
+A class method which returns a list of instances of this model by implicitly making an API call to Discord. If an instance of `User` exists in the users internal cache who belongs to these guilds then, the cached property `User.guilds` is updated.
+
+```python
+@classmethod
+fetch_from_api(cache: bool = True) -> list[Guild]
+```
+
+<ParamField path="cache" type="bool" default="True">
+  Determines if the `User.guilds` cache should be updated with the new guilds.
+</ParamField>
+
+**Returns:** List of `flask_discord.Guild` instances to which this user belongs.
+
+## Operations
+
+### Equality Comparison
+
+```python
+x == y  # Checks if two guilds are the same
+x != y  # Checks if two guilds are not the same
+```
+
+### String Representation
+
+```python
+str(guild)  # Returns the guild's name
+```
+
+## Example
+
+```python
+from flask_discord import DiscordOAuth2Session
+
+# Fetch all guilds user is member of
+guilds = discord.fetch_guilds()
+
+for guild in guilds:
+    print(guild.name)  # "My Discord Server"
+    print(guild.id)  # 1234567890
+    print(guild.is_owner)  # True/False
+    print(guild.icon_url)  # "https://cdn.discordapp.com/icons/..."
+    
+    # Check permissions
+    if guild.permissions:
+        if guild.permissions.administrator:
+            print(f"Admin in {guild.name}")
+        if guild.permissions.manage_channels:
+            print(f"Can manage channels in {guild.name}")
+```

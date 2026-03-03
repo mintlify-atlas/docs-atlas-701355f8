@@ -1,0 +1,74 @@
+---
+title: Flask-Discord
+description: Discord OAuth2 extension for Flask applications
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Flask-Discord Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Flask-Discord Hero Dark"
+/>
+
+## Welcome to Flask-Discord
+
+Flask-Discord is a Discord OAuth2 extension for Flask that simplifies integrating Discord authentication into your Flask applications. It provides an easy-to-use interface for implementing Discord's OAuth2 flow, managing user sessions, and accessing Discord API resources.
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Get started by installing Flask-Discord via pip
+  </Card>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Build your first Discord OAuth2 app in minutes
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/client/discord-oauth2-session"
+  >
+    Explore the complete DiscordOAuth2Session API
+  </Card>
+  <Card
+    title="GitHub Repository"
+    icon="github"
+    href="https://github.com/thec0sm0s/Flask-Discord"
+  >
+    View source code and contribute to the project
+  </Card>
+</CardGroup>
+
+## Key Features
+
+- **Easy OAuth2 Integration**: Simplified Discord OAuth2 flow with Flask session management
+- **User Data Access**: Fetch Discord user profiles, connections, and guilds
+- **Bot Integration**: Support for bot scope with customizable permissions
+- **Flexible Caching**: Built-in user caching with configurable cache backends
+- **Decorator Support**: Protect routes with `@requires_authorization` decorator
+- **Error Handling**: Custom exception classes for common OAuth2 errors
+
+## Requirements
+
+Flask-Discord requires the following dependencies:
+
+- Flask
+- requests_oauthlib
+- cachetools
+- pyjwt>=2.4.0
+- requests
+- oauthlib
+
+<Note>
+  All dependencies are automatically installed when you install Flask-Discord via pip.
+</Note>

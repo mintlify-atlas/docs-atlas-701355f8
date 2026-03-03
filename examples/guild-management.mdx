@@ -1,0 +1,418 @@
+---
+title: Guild Management Example
+description: List and manage Discord guilds (servers) the user belongs to, including permissions and admin detection
+---
+
+This example demonstrates how to fetch and display Discord guilds (servers) that a user belongs to, check their permissions, and identify admin privileges.
+
+## Overview
+
+This example shows:
+- Fetching user's guilds
+- Displaying guild information
+- Checking user permissions in guilds
+- Identifying guilds where user is administrator or owner
+- Adding users to guilds with bot integration
+
+## Complete Example
+
+```python
+import os
+
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
+
+app = Flask(__name__)
+
+app.secret_key = b"random bytes representing flask secret key"
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "true"  # !! Only in development environment.
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = "your-client-secret"
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback/"
+app.config["DISCORD_BOT_TOKEN"] = "your-bot-token"  # Required for guild operations
+
+discord = DiscordOAuth2Session(app)
+
+HYPERLINK = '<a href="{}">{}</a>'
+
+
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return f'''
+        {HYPERLINK.format(url_for(".login"), "Login")}<br />
+        {HYPERLINK.format(url_for(".login_with_bot"), "Login and Add Bot")}
+        '''
+    
+    return f'''
+    {HYPERLINK.format(url_for(".me"), "Profile")}<br />
+    {HYPERLINK.format(url_for(".user_guilds"), "My Servers")}<br />
+    {HYPERLINK.format(url_for(".logout"), "Logout")}
+    '''
+
+
+@app.route("/login/")
+def login():
+    # Request guilds scope to access user's servers
+    return discord.create_session(scope=["identify", "guilds"])
+
+
+@app.route("/login-bot/")
+def login_with_bot():
+    # Request bot scope with permissions
+    # This allows inviting the bot to servers during OAuth
+    return discord.create_session(
+        scope=["identify", "guilds", "bot", "guilds.join"],
+        permissions=8  # Administrator permission
+    )
+
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for(".user_guilds"))
+
+
+@app.errorhandler(Unauthorized)
+def redirect_unauthorized(e):
+    return redirect(url_for("login"))
+
+
+@app.route("/me/")
+@requires_authorization
+def me():
+    user = discord.fetch_user()
+    avatar = user.avatar_url or user.default_avatar_url
+    return f"""
+    <html>
+    <head>
+        <title>{user.name}</title>
+    </head>
+    <body>
+        <img src='{avatar}' />
+        <p>Welcome, {user.name}#{user.discriminator}!</p>
+        <a href="{url_for("user_guilds")}">View My Servers</a>
+    </body>
+    </html>
+    """
+
+
+@app.route("/me/guilds/")
+@requires_authorization
+def user_guilds():
+    guilds = discord.fetch_guilds()
+    
+    guild_html = "<h2>Your Discord Servers</h2>"
+    
+    if not guilds:
+        guild_html += "<p>You are not in any servers.</p>"
+    else:
+        guild_html += f"<p>You are in {len(guilds)} server(s):</p>"
+        guild_html += "<ul>"
+        
+        for guild in guilds:
+            # Check if user is owner
+            owner_badge = "<strong>[OWNER]</strong> " if guild.is_owner else ""
+            
+            # Check if user has admin permissions
+            admin_badge = "<strong>[ADMIN]</strong> " if guild.permissions and guild.permissions.administrator else ""
+            
+            # Get guild icon if available
+            icon = f'<img src="{guild.icon_url}" width="32" height="32" style="vertical-align: middle; margin-right: 8px;" />' if guild.icon_url else ""
+            
+            guild_html += f"""
+            <li style="margin: 10px 0;">
+                {icon}
+                {owner_badge}{admin_badge}{guild.name}
+                <span style="color: #999; font-size: 0.9em;">(ID: {guild.id})</span>
+            </li>
+            """
+        
+        guild_html += "</ul>"
+    
+    return f"""
+    <html>
+    <head>
+        <title>My Servers</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                max-width: 800px;
+                margin: 50px auto;
+                padding: 20px;
+            }}
+            ul {{
+                list-style-type: none;
+                padding: 0;
+            }}
+            li {{
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+            }}
+        </style>
+    </head>
+    <body>
+        {guild_html}
+        <br />
+        <a href="{url_for("index")}">Home</a> |
+        <a href="{url_for("logout")}">Logout</a>
+    </body>
+    </html>
+    """
+
+
+@app.route("/add_to/<int:guild_id>/")
+@requires_authorization
+def add_to_guild(guild_id):
+    """Add the current user to a guild using the bot."""
+    user = discord.fetch_user()
+    result = user.add_to_guild(guild_id)
+    
+    if result:
+        return f"<p>Successfully added to guild {guild_id}!</p><a href='{url_for('user_guilds')}'>Back to Servers</a>"
+    else:
+        return f"<p>You are already in this guild or the operation failed.</p><a href='{url_for('user_guilds')}'>Back to Servers</a>"
+
+
+@app.route("/logout/")
+@requires_authorization
+def logout():
+    discord.revoke()
+    return redirect(url_for(".index"))
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+## Key Features
+
+<Steps>
+
+### Requesting guilds scope
+
+To access a user's guilds, request the `guilds` scope:
+
+```python
+@app.route("/login/")
+def login():
+    return discord.create_session(scope=["identify", "guilds"])
+```
+
+### Fetching guilds
+
+Retrieve all guilds the user belongs to:
+
+```python
+@app.route("/me/guilds/")
+@requires_authorization
+def user_guilds():
+    guilds = discord.fetch_guilds()
+    return "<br />".join([guild.name for guild in guilds])
+```
+
+### Checking permissions
+
+Each guild object includes the user's permissions:
+
+```python
+guilds = discord.fetch_guilds()
+for guild in guilds:
+    if guild.permissions.administrator:
+        print(f"[ADMIN] {guild.name}")
+    elif guild.is_owner:
+        print(f"[OWNER] {guild.name}")
+    else:
+        print(guild.name)
+```
+
+### Bot scope and permissions
+
+Request bot scope to invite your bot during OAuth:
+
+```python
+@app.route("/invite-bot/")
+def invite_bot():
+    return discord.create_session(
+        scope=["bot", "identify"],
+        permissions=8,  # Administrator
+        guild_id=123456789,  # Optional: pre-select a specific guild
+        disable_guild_select=True  # Optional: disable guild selection
+    )
+```
+
+Common permission values:
+- `8` - Administrator
+- `3072` - Read Messages, Send Messages
+- `268561408` - General bot permissions
+
+### Adding users to guilds
+
+With `guilds.join` scope and bot token, add users to guilds:
+
+```python
+@app.route("/add_to/<int:guild_id>/")
+@requires_authorization
+def add_to_guild(guild_id):
+    user = discord.fetch_user()
+    result = user.add_to_guild(guild_id)
+    
+    if result:
+        return "User added to guild!"
+    else:
+        return "User already in guild or operation failed"
+```
+
+</Steps>
+
+## Guild Model Properties
+
+The `Guild` object provides access to these properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | int | Discord guild ID |
+| `name` | str | Guild name |
+| `icon_hash` | str | Hash of guild's icon |
+| `icon_url` | str | Direct URL to guild icon (None if no icon) |
+| `is_owner` | bool | Whether the user owns this guild |
+| `permissions` | discord.Permissions | User's permissions in this guild |
+
+## Permission Checking
+
+The `permissions` attribute is a `discord.Permissions` object with many properties:
+
+```python
+for guild in guilds:
+    perms = guild.permissions
+    
+    if perms.administrator:
+        print(f"Admin in {guild.name}")
+    
+    if perms.manage_guild:
+        print(f"Can manage {guild.name}")
+    
+    if perms.kick_members:
+        print(f"Can kick members in {guild.name}")
+    
+    if perms.ban_members:
+        print(f"Can ban members in {guild.name}")
+```
+
+Common permission properties:
+- `administrator`
+- `manage_guild`
+- `manage_channels`
+- `manage_roles`
+- `kick_members`
+- `ban_members`
+- `send_messages`
+- `manage_messages`
+- `mention_everyone`
+
+<Note>
+The `permissions` attribute may be `None` if the Discord API doesn't return permission data for certain guilds.
+</Note>
+
+## Advanced: Filtering Guilds
+
+Filter guilds based on user permissions:
+
+<CodeGroup>
+
+```python Admin Guilds Only
+@app.route("/admin-guilds/")
+@requires_authorization
+def admin_guilds():
+    guilds = discord.fetch_guilds()
+    admin_guilds = [
+        guild for guild in guilds 
+        if guild.permissions and guild.permissions.administrator
+    ]
+    return {"count": len(admin_guilds), "guilds": [g.name for g in admin_guilds]}
+```
+
+```python Owned Guilds Only
+@app.route("/owned-guilds/")
+@requires_authorization
+def owned_guilds():
+    guilds = discord.fetch_guilds()
+    owned = [guild for guild in guilds if guild.is_owner]
+    return {"count": len(owned), "guilds": [g.name for g in owned]}
+```
+
+```python Guilds with Manage Permission
+@app.route("/manageable-guilds/")
+@requires_authorization
+def manageable_guilds():
+    guilds = discord.fetch_guilds()
+    manageable = [
+        guild for guild in guilds
+        if guild.permissions and guild.permissions.manage_guild
+    ]
+    return {"count": len(manageable), "guilds": [g.name for g in manageable]}
+```
+
+</CodeGroup>
+
+## Bot Integration
+
+To add your bot to guilds, you need:
+
+1. A bot token configured in `DISCORD_BOT_TOKEN`
+2. The `guilds.join` OAuth2 scope
+3. Your bot must be in the target guild
+
+```python
+app.config["DISCORD_BOT_TOKEN"] = "your-bot-token"
+
+@app.route("/login-with-join/")
+def login_with_join():
+    return discord.create_session(
+        scope=["identify", "guilds", "guilds.join"]
+    )
+
+@app.route("/add-me/<int:guild_id>/")
+@requires_authorization
+def add_me(guild_id):
+    user = discord.fetch_user()
+    user.add_to_guild(guild_id)
+    return redirect(url_for("user_guilds"))
+```
+
+<Tip>
+When using bot scope during OAuth, users will be prompted to select a server and authorize bot permissions during the login flow.
+</Tip>
+
+## Caching Guilds
+
+Guilds are cached along with the user object:
+
+```python
+# First call fetches from API
+guilds = discord.fetch_guilds()
+
+# Subsequent calls return cached data
+guilds = discord.fetch_guilds()
+
+# Access cached guilds from user object
+user = discord.fetch_user()
+if user.guilds:
+    print(f"Cached guilds: {len(user.guilds)}")
+```
+
+You can also fetch and cache guilds when fetching the user:
+
+```python
+from flask_discord.models import User
+
+user = User.fetch_from_api(guilds=True)
+print(f"User has {len(user.guilds)} guilds")
+```
+
+## Next Steps
+
+- Check out the [Guild API reference](/api/models/guild) for all available methods
+- Learn about [OAuth2 scopes](/core/scopes) in detail
+- Explore [bot permissions](/core/permissions) for custom permission values

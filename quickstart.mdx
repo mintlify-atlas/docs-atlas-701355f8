@@ -1,80 +1,240 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Build your first Discord OAuth2 application with Flask-Discord
 ---
 
-## Get started in three steps
+## Getting Started
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through creating a simple Flask application with Discord OAuth2 authentication.
 
-### Step 1: Set up your local environment
+<Steps>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Step title="Set up your Discord application">
 
-### Step 2: Deploy your changes
+Before you begin, create a Discord application:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click "New Application" and give it a name
+3. Navigate to the "OAuth2" section
+4. Note your **Client ID** and **Client Secret**
+5. Add a redirect URI (e.g., `http://localhost:5000/callback/`)
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Warning>
+  Keep your Client Secret confidential. Never commit it to version control.
+</Warning>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+</Step>
 
-### Step 3: Go live
+<Step title="Create your Flask application">
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+Create a new Python file (e.g., `app.py`) and add the following code:
 
-## Next steps
+```python
+import os
 
-Now that you have your docs running, explore these key features:
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
 
-<CardGroup cols={2}>
+app = Flask(__name__)
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+app.secret_key = b"random bytes representing flask secret key"
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "true"      # !! Only in development environment.
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233    # Discord client ID.
+app.config["DISCORD_CLIENT_SECRET"] = ""                # Discord client secret.
+app.config["DISCORD_REDIRECT_URI"] = ""                 # URL to your callback endpoint.
+app.config["DISCORD_BOT_TOKEN"] = ""                    # Required to access BOT resources.
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+discord = DiscordOAuth2Session(app)
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Replace the placeholder values with your actual Discord application credentials.
 </Note>
+
+<Warning>
+  The `OAUTHLIB_INSECURE_TRANSPORT` setting should **only** be used in development. Remove it in production and use HTTPS.
+</Warning>
+
+</Step>
+
+<Step title="Create the login route">
+
+Add a route that initiates the OAuth2 flow:
+
+```python
+@app.route("/login/")
+def login():
+    return discord.create_session()
+```
+
+The `create_session()` method redirects users to Discord for authorization.
+
+</Step>
+
+<Step title="Create the callback route">
+
+Add a callback route to handle the OAuth2 response:
+
+```python
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for(".me"))
+```
+
+This route processes the authorization code and saves the token to the session.
+
+</Step>
+
+<Step title="Add unauthorized error handler">
+
+Handle unauthorized access attempts:
+
+```python
+@app.errorhandler(Unauthorized)
+def redirect_unauthorized(e):
+    return redirect(url_for("login"))
+```
+
+This redirects users to the login page when they try to access protected routes without authorization.
+
+</Step>
+
+<Step title="Create a protected route">
+
+Add a route that displays the authenticated user's information:
+
+```python
+@app.route("/me/")
+@requires_authorization
+def me():
+    user = discord.fetch_user()
+    return f"""
+    <html>
+        <head>
+            <title>{user.name}</title>
+        </head>
+        <body>
+            <img src='{user.avatar_url}' />
+        </body>
+    </html>"""
+```
+
+The `@requires_authorization` decorator ensures only authenticated users can access this route.
+
+</Step>
+
+<Step title="Run your application">
+
+Add the following to run your Flask app:
+
+```python
+if __name__ == "__main__":
+    app.run()
+```
+
+Run your application:
+
+```bash
+python app.py
+```
+
+Visit `http://localhost:5000/login/` in your browser to test the OAuth2 flow.
+
+</Step>
+
+</Steps>
+
+## Complete Example
+
+Here's the complete working example:
+
+```python
+import os
+
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
+
+app = Flask(__name__)
+
+app.secret_key = b"random bytes representing flask secret key"
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "true"      # !! Only in development environment.
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233    # Discord client ID.
+app.config["DISCORD_CLIENT_SECRET"] = ""                # Discord client secret.
+app.config["DISCORD_REDIRECT_URI"] = ""                 # URL to your callback endpoint.
+app.config["DISCORD_BOT_TOKEN"] = ""                    # Required to access BOT resources.
+
+discord = DiscordOAuth2Session(app)
+
+
+@app.route("/login/")
+def login():
+    return discord.create_session()
+	
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for(".me"))
+
+
+@app.errorhandler(Unauthorized)
+def redirect_unauthorized(e):
+    return redirect(url_for("login"))
+
+	
+@app.route("/me/")
+@requires_authorization
+def me():
+    user = discord.fetch_user()
+    return f"""
+    <html>
+        <head>
+            <title>{user.name}</title>
+        </head>
+        <body>
+            <img src='{user.avatar_url}' />
+        </body>
+    </html>"""
+
+
+if __name__ == "__main__":
+    app.run()
+```
+
+## Configuration Options
+
+The following configuration options are available:
+
+| Config Key | Description | Required |
+|------------|-------------|----------|
+| `DISCORD_CLIENT_ID` | Your Discord application's client ID | Yes |
+| `DISCORD_CLIENT_SECRET` | Your Discord application's client secret | Yes |
+| `DISCORD_REDIRECT_URI` | The callback URL for OAuth2 | Yes |
+| `DISCORD_BOT_TOKEN` | Bot token for accessing bot resources | No |
+| `DISCORD_USERS_CACHE_MAX_LIMIT` | Maximum number of users to cache | No |
+
+<Tip>
+  You can also pass these values directly to the `DiscordOAuth2Session` constructor instead of using Flask config.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/client/discord-oauth2-session"
+  >
+    Explore all available methods and properties
+  </Card>
+  <Card
+    title="User Model"
+    icon="user"
+    href="/api/models/user"
+  >
+    Learn about the User model and its attributes
+  </Card>
+</CardGroup>

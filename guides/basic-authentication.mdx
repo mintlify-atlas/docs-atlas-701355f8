@@ -1,0 +1,192 @@
+---
+title: Basic Authentication
+description: Learn how to set up Discord OAuth2 authentication in your Flask application
+---
+
+## Overview
+
+Flask-Discord provides a simple way to integrate Discord OAuth2 authentication into your Flask application. This guide will walk you through the basic setup process.
+
+<Steps>
+
+### Install Flask-Discord
+
+First, install the package via pip:
+
+```bash
+pip install Flask-Discord
+```
+
+### Configure Your Application
+
+Set up your Flask app with the required Discord OAuth2 credentials:
+
+```python app.py
+import os
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+
+# Set a secret key for session management
+app.secret_key = b"your-secret-key-here"
+
+# Configure Discord OAuth2 credentials
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233  # Your client ID
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+# Initialize the Discord OAuth2 session
+discord = DiscordOAuth2Session(app)
+```
+
+<Note>
+For development only, you may need to set `OAUTHLIB_INSECURE_TRANSPORT` to allow HTTP:
+```python
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "true"
+```
+**Never use this in production!**
+</Note>
+
+### Create Login Route
+
+Create a route that redirects users to Discord's authorization page:
+
+```python app.py
+@app.route("/login/")
+def login():
+    return discord.create_session()
+```
+
+The `create_session()` method accepts optional parameters:
+
+- `scope` - List of OAuth2 scopes (defaults to `["identify", "email"]`)
+- `prompt` - Whether to show authorization prompt (defaults to `True`)
+- `data` - Custom data to pass through the OAuth flow
+
+### Create Callback Route
+
+Handle the OAuth2 callback from Discord:
+
+```python app.py
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for(".index"))
+```
+
+<Tip>
+The `callback()` method automatically fetches and stores the authorization token in the user's session.
+</Tip>
+
+### Check Authorization Status
+
+You can check if a user is authorized using the `authorized` property:
+
+```python app.py
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return '<a href="/login/">Login with Discord</a>'
+    
+    return '<a href="/me/">View Profile</a>'
+```
+
+### Create Logout Route
+
+Revoke the user's session:
+
+```python app.py
+@app.route("/logout/")
+def logout():
+    discord.revoke()
+    return redirect(url_for(".index"))
+```
+
+</Steps>
+
+## Complete Example
+
+<CodeGroup>
+
+```python Basic Setup
+import os
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key-here"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+discord = DiscordOAuth2Session(app)
+
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return '<a href="/login/">Login with Discord</a>'
+    return '<a href="/me/">View Profile</a> | <a href="/logout/">Logout</a>'
+
+@app.route("/login/")
+def login():
+    return discord.create_session()
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for(".index"))
+
+@app.route("/logout/")
+def logout():
+    discord.revoke()
+    return redirect(url_for(".index"))
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+```python With Custom Data
+@app.route("/login-data/")
+def login_with_data():
+    return discord.create_session(
+        data=dict(
+            redirect="/me/",
+            coupon="15off",
+            number=15
+        )
+    )
+
+@app.route("/callback/")
+def callback():
+    # Retrieve custom data passed during login
+    data = discord.callback()
+    redirect_to = data.get("redirect", "/")
+    coupon = data.get("coupon")
+    
+    return redirect(redirect_to)
+```
+
+</CodeGroup>
+
+## Configuration Options
+
+All configuration can be set via Flask config or passed directly to `DiscordOAuth2Session`:
+
+| Config Key | Parameter | Description |
+|------------|-----------|-------------|
+| `DISCORD_CLIENT_ID` | `client_id` | Your Discord application's client ID |
+| `DISCORD_CLIENT_SECRET` | `client_secret` | Your Discord application's client secret |
+| `DISCORD_REDIRECT_URI` | `redirect_uri` | The callback URL for OAuth2 |
+| `DISCORD_BOT_TOKEN` | `bot_token` | Bot token for bot-scope operations |
+
+<Warning>
+Always store sensitive credentials like `DISCORD_CLIENT_SECRET` in environment variables, never hardcode them!
+</Warning>
+
+## Next Steps
+
+- [Fetching User Data](/guides/fetching-user-data) - Learn how to retrieve user information
+- [Working with Guilds](/guides/working-with-guilds) - Access user's Discord servers
+- [Bot Integration](/guides/bot-integration) - Add your bot to servers during OAuth

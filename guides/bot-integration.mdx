@@ -1,0 +1,367 @@
+---
+title: Bot Integration
+description: Learn how to use bot scope and permissions in Flask-Discord OAuth2
+---
+
+## Overview
+
+Flask-Discord supports Discord's `bot` scope, allowing you to add your bot to servers during the OAuth2 flow. This creates a combined authorization experience where users both authenticate and add your bot with specific permissions.
+
+## Prerequisites
+
+Before using bot scope, you need:
+
+1. A Discord bot created in the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Your bot's token
+3. Flask-Discord configured with your bot token
+
+## Configuration
+
+### Setting Up Bot Token
+
+Add your bot token to your Flask configuration:
+
+```python app.py
+import os
+from flask import Flask
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_BOT_TOKEN"] = os.getenv("DISCORD_BOT_TOKEN")  # Required for bot operations
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+discord = DiscordOAuth2Session(app)
+```
+
+<Warning>
+Never hardcode your bot token! Always use environment variables or secure configuration management.
+</Warning>
+
+## Using Bot Scope
+
+### Basic Bot Invitation
+
+Create a session with the `bot` scope to allow users to add your bot:
+
+```python app.py
+@app.route("/invite-bot/")
+def invite_bot():
+    return discord.create_session(
+        scope=["bot"],
+        permissions=8  # Administrator permission
+    )
+```
+
+<Note>
+When using the `bot` scope, you **must** use explicit OAuth grant (prompt=True). Implicit grant is not allowed for bot scope.
+</Note>
+
+## Working with Permissions
+
+### Permission Values
+
+The `permissions` parameter accepts either:
+- An integer representing permission bits
+- A `Permissions` object from `flask_discord.types`
+
+```python app.py
+from flask_discord import DiscordOAuth2Session
+from flask_discord.types import Permissions
+
+# Using integer (permissions value)
+@app.route("/invite-bot-int/")
+def invite_with_int():
+    return discord.create_session(
+        scope=["bot"],
+        permissions=8  # Administrator
+    )
+
+# Using Permissions object
+@app.route("/invite-bot-perms/")
+def invite_with_perms():
+    perms = Permissions()
+    # Set specific permissions
+    return discord.create_session(
+        scope=["bot"],
+        permissions=perms
+    )
+```
+
+### Common Permission Values
+
+Here are some common permission combinations:
+
+| Permission | Value | Use Case |
+|------------|-------|----------|
+| Administrator | `8` | Full server control |
+| Manage Server | `32` | Server management |
+| Manage Roles | `268435456` | Role management |
+| Manage Channels | `16` | Channel management |
+| Kick Members | `2` | Moderation |
+| Ban Members | `4` | Moderation |
+| Send Messages | `2048` | Basic messaging |
+| Manage Messages | `8192` | Message moderation |
+| Read Message History | `65536` | View old messages |
+
+<Tip>
+You can use [Discord's Permission Calculator](https://discordapi.com/permissions.html) to calculate permission values.
+</Tip>
+
+### Custom Permissions Example
+
+```python app.py
+@app.route("/invite-moderator/")
+def invite_moderator_bot():
+    # Kick (2) + Ban (4) + Manage Messages (8192) = 8198
+    moderator_perms = 2 + 4 + 8192
+    
+    return discord.create_session(
+        scope=["bot"],
+        permissions=moderator_perms
+    )
+
+@app.route("/invite-basic/")
+def invite_basic_bot():
+    # Send Messages (2048) + Read Message History (65536) = 67584
+    basic_perms = 2048 + 65536
+    
+    return discord.create_session(
+        scope=["bot"],
+        permissions=basic_perms
+    )
+```
+
+## Combining Bot and OAuth Scopes
+
+### Bot + User Authorization
+
+You can combine bot scope with user scopes for a complete authorization:
+
+```python app.py
+@app.route("/invite-oauth/")
+def invite_oauth():
+    return discord.create_session(
+        scope=["bot", "identify", "guilds"],
+        permissions=8
+    )
+```
+
+This flow will:
+1. Ask the user to authorize the application
+2. Ask the user to add the bot to a server
+3. Grant your application access to user data
+
+<Steps>
+
+### User Clicks Authorization Link
+The user is redirected to Discord's authorization page.
+
+### User Selects Server
+Discord shows a dropdown to select which server to add the bot to.
+
+### User Grants Permissions
+The user reviews and grants the requested permissions.
+
+### Callback Completes
+The user is redirected back to your callback URL with authorization code.
+
+</Steps>
+
+## Advanced Bot Features
+
+### Disable Guild Selection
+
+Force the bot to be added to a specific guild:
+
+```python app.py
+@app.route("/invite-specific/")
+def invite_to_specific_guild():
+    return discord.create_session(
+        scope=["bot"],
+        permissions=8,
+        guild_id=464488012328468480,
+        disable_guild_select=True
+    )
+```
+
+<Warning>
+When using `disable_guild_select=True`, the user must have "Manage Server" permissions in the specified guild, otherwise authorization will fail.
+</Warning>
+
+### Complete Bot Integration Example
+
+<CodeGroup>
+
+```python Basic Bot Invite
+import os
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_BOT_TOKEN"] = os.getenv("DISCORD_BOT_TOKEN")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+discord = DiscordOAuth2Session(app)
+
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return '''
+        <a href="/login/">Login</a><br/>
+        <a href="/invite-bot/">Add Bot</a>
+        '''
+    return '<a href="/me/">Profile</a>'
+
+@app.route("/invite-bot/")
+def invite_bot():
+    return discord.create_session(
+        scope=["bot"],
+        permissions=8
+    )
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for("index"))
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+```python Bot + User Data
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return '''
+        <h1>Discord Bot Integration</h1>
+        <a href="/login/">Login Only</a><br/>
+        <a href="/invite-bot/">Add Bot Only</a><br/>
+        <a href="/invite-oauth/">Login + Add Bot</a>
+        '''
+    
+    user = discord.fetch_user()
+    return f'''
+    <h1>Welcome {user.name}!</h1>
+    <a href="/logout/">Logout</a>
+    '''
+
+@app.route("/login/")
+def login():
+    return discord.create_session(scope=["identify"])
+
+@app.route("/invite-bot/")
+def invite_bot():
+    return discord.create_session(
+        scope=["bot"],
+        permissions=8,
+        disable_guild_select=True,
+        guild_id=464488012328468480
+    )
+
+@app.route("/invite-oauth/")
+def invite_oauth():
+    # Combined: login user + add bot
+    return discord.create_session(
+        scope=["bot", "identify"],
+        permissions=8
+    )
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for("index"))
+
+@app.route("/logout/")
+def logout():
+    discord.revoke()
+    return redirect(url_for("index"))
+```
+
+</CodeGroup>
+
+## Bot Request Methods
+
+When you have a bot token configured, you can make API requests as the bot:
+
+```python app.py
+@app.route("/welcome/<int:user_id>/")
+def welcome_user(user_id):
+    # Create DM channel with user
+    dm_channel = discord.bot_request(
+        "/users/@me/channels",
+        "POST",
+        json={"recipient_id": user_id}
+    )
+    
+    # Send welcome message
+    discord.bot_request(
+        f"/channels/{dm_channel['id']}/messages",
+        "POST",
+        json={"content": "Thanks for authorizing the app!"}
+    )
+    
+    return "Welcome message sent!"
+```
+
+<Note>
+Bot requests use your bot token, not the user's OAuth token. This allows you to perform bot actions that require bot authentication.
+</Note>
+
+## Error Handling
+
+### Handling Bot Scope Errors
+
+```python app.py
+@app.route("/invite-safe/")
+def invite_bot_safe():
+    try:
+        return discord.create_session(
+            scope=["bot"],
+            permissions=8,
+            prompt=False  # This will raise an error!
+        )
+    except ValueError as e:
+        # "You should use explicit OAuth grant for passthrough scopes like bot."
+        return f"Error: {str(e)}", 400
+```
+
+### Validating Permissions Type
+
+```python app.py
+from flask_discord.types import Permissions
+
+@app.route("/invite-validated/")
+def invite_with_validation():
+    perms = "invalid"  # Wrong type
+    
+    try:
+        return discord.create_session(
+            scope=["bot"],
+            permissions=perms  # This will raise ValueError
+        )
+    except ValueError as e:
+        # "Passed permissions must be an int or discord.Permissions"
+        return f"Error: {str(e)}", 400
+```
+
+## Best Practices
+
+1. **Request minimum permissions** - Only ask for permissions your bot actually needs
+2. **Use explicit grant** - Always use `prompt=True` (default) with bot scope
+3. **Secure your token** - Store bot token in environment variables
+4. **Combine scopes wisely** - Add `identify` with `bot` for better user experience
+5. **Handle errors gracefully** - Provide clear error messages to users
+
+## Next Steps
+
+- [Working with Guilds](/guides/working-with-guilds) - Learn about adding users to guilds
+- [Fetching User Data](/guides/fetching-user-data) - Access user information
+- [Custom Session Handling](/guides/custom-session-handling) - Implement server-side sessions

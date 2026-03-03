@@ -1,0 +1,217 @@
+---
+title: "DiscordOAuth2Session"
+description: "Main client class for Discord OAuth2 integration in Flask applications"
+---
+
+## DiscordOAuth2Session
+
+Main client class representing hypothetical OAuth2 session with Discord. It uses Flask `session` local proxy object to save state, authorization token and keeps record of users sessions across different requests.
+
+### Constructor
+
+```python
+DiscordOAuth2Session(
+    app: Flask,
+    client_id: int = None,
+    client_secret: str = None,
+    redirect_uri: str = None,
+    bot_token: str = None,
+    users_cache: cachetools.LFUCache = None
+)
+```
+
+<ParamField path="app" type="Flask" required>
+  An instance of your Flask application.
+</ParamField>
+
+<ParamField path="client_id" type="int">
+  The client ID of Discord application provided. Can also be set to Flask config with key `DISCORD_CLIENT_ID`.
+</ParamField>
+
+<ParamField path="client_secret" type="str">
+  The client secret of Discord application provided. Can also be set to Flask config with key `DISCORD_CLIENT_SECRET`.
+</ParamField>
+
+<ParamField path="redirect_uri" type="str">
+  The default URL to use to redirect user to after authorization. Can also be set to Flask config with key `DISCORD_REDIRECT_URI`.
+</ParamField>
+
+<ParamField path="bot_token" type="str">
+  The bot token of the application. This is required when you also need to access bot scope resources beyond the normal resources provided by the OAuth. Can also be set to Flask config with key `DISCORD_BOT_TOKEN`.
+</ParamField>
+
+<ParamField path="users_cache" type="cachetools.LFUCache">
+  Any dict-like mapping to internally cache the authorized users. Preferably an instance of `cachetools.LFUCache` or `cachetools.TTLCache`. If not specified, default `cachetools.LFUCache` is used. Uses the default max limit for cache if `DISCORD_USERS_CACHE_MAX_LIMIT` isn't specified in app config.
+</ParamField>
+
+### Attributes
+
+<ResponseField name="client_id" type="int">
+  The client ID of Discord application provided.
+</ResponseField>
+
+<ResponseField name="redirect_uri" type="str">
+  The default URL to use to redirect user to after authorization.
+</ResponseField>
+
+<ResponseField name="users_cache" type="cachetools.LFUCache">
+  A dict-like mapping to internally cache the authorized users.
+</ResponseField>
+
+<ResponseField name="authorized" type="bool">
+  A boolean indicating whether current session has authorization token or not.
+</ResponseField>
+
+## Methods
+
+### create_session
+
+Primary method used to create OAuth2 session and redirect users for authorization code grant.
+
+```python
+create_session(
+    scope: list = None,
+    *,
+    data: dict = None,
+    prompt: bool = True,
+    permissions: Union[Permissions, int] = 0,
+    **params
+) -> redirect
+```
+
+<ParamField path="scope" type="list">
+  An optional list of valid Discord OAuth2 Scopes.
+</ParamField>
+
+<ParamField path="data" type="dict">
+  A mapping of any custom data which you want to access after authorization grant. Use `callback()` to retrieve this data in your callback view.
+</ParamField>
+
+<ParamField path="prompt" type="bool" default="True">
+  Determines if the OAuth2 grant should be explicitly prompted and re-approved. Defaults to True. Specify False for implicit grant which will skip the authorization screen and redirect to redirect URI.
+</ParamField>
+
+<ParamField path="permissions" type="Union[Permissions, int]" default="0">
+  An optional parameter determining guild permissions of the bot while adding it to a guild using Discord OAuth2 with `bot` scope. It is same as generating so called *bot invite link* which redirects to your callback endpoint after bot authorization flow. Defaults to 0 or no permissions.
+</ParamField>
+
+<ParamField path="**params" type="kwargs">
+  Additional query parameters to append to authorization URL for customized OAuth flow.
+</ParamField>
+
+**Returns:** Flask redirect to Discord authorization servers to complete authorization code grant process.
+
+<Note>
+  If you're using implicit grant (`prompt=False`) with passthrough scopes like `bot`, a `ValueError` will be raised. You should use explicit OAuth grant for passthrough scopes.
+</Note>
+
+### callback
+
+A method which should always be called after completing authorization code grant process, usually in callback view. It fetches the authorization token and saves it to Flask session object.
+
+```python
+callback() -> dict
+```
+
+**Returns:** A dictionary containing the decoded state data that was passed to `create_session()`.
+
+**Raises:**
+- `AccessDenied`: When user denies authorization
+- `HttpException`: For other OAuth errors
+
+### revoke
+
+This method clears current Discord token, state and all session data from Flask session. Which means user will have to go through Discord authorization token grant flow again. Also tries to remove the user from internal cache if they exist.
+
+```python
+revoke()
+```
+
+### save_authorization_token
+
+A static method which saves a dict containing Discord OAuth2 token and other secrets to the user's cookies. Meaning by default, it uses client-side session handling.
+
+```python
+@staticmethod
+save_authorization_token(token: dict)
+```
+
+<ParamField path="token" type="dict" required>
+  A dictionary containing the OAuth2 token and related secrets.
+</ParamField>
+
+<Note>
+  Override this method if you want to handle the user's session server-side. If this method is overridden, you must also override `get_authorization_token()`.
+</Note>
+
+### get_authorization_token
+
+A static method which returns a dict containing Discord OAuth2 token and other secrets which was saved previously by `save_authorization_token()` from user's cookies.
+
+```python
+@staticmethod
+get_authorization_token() -> dict
+```
+
+**Returns:** Dictionary containing the OAuth2 token and secrets.
+
+<Note>
+  You must override this method if you are implementing server-side session handling.
+</Note>
+
+### fetch_user
+
+This method returns user object from the internal cache if it exists, otherwise makes an API call to do so.
+
+```python
+@staticmethod
+fetch_user() -> User
+```
+
+**Returns:** `flask_discord.models.User` object representing the authorized user.
+
+### fetch_connections
+
+This method returns list of user connection objects from internal cache if it exists, otherwise makes an API call to do so.
+
+```python
+@staticmethod
+fetch_connections() -> list
+```
+
+**Returns:** List of `flask_discord.models.UserConnection` objects.
+
+### fetch_guilds
+
+This method returns list of guild objects from internal cache if it exists, otherwise makes an API call to do so.
+
+```python
+@staticmethod
+fetch_guilds() -> list
+```
+
+**Returns:** List of `flask_discord.models.Guild` objects.
+
+## Example
+
+```python
+from flask import Flask, redirect, url_for
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = "..."
+app.config["DISCORD_REDIRECT_URI"] = "http://localhost:5000/callback"
+
+discord = DiscordOAuth2Session(app)
+
+@app.route("/login")
+def login():
+    return discord.create_session()
+
+@app.route("/callback")
+def callback():
+    discord.callback()
+    user = discord.fetch_user()
+    return redirect(url_for("profile"))
+```

@@ -1,0 +1,108 @@
+---
+title: "UserConnection Model"
+description: "Class representing third-party connections in a Discord user's account"
+---
+
+## UserConnection
+
+Class representing connections in Discord account of the user (e.g., Twitch, YouTube, Spotify).
+
+### Constructor
+
+```python
+UserConnection(payload: dict)
+```
+
+<ParamField path="payload" type="dict" required>
+  Raw Discord API user connection payload.
+</ParamField>
+
+## Attributes
+
+<ResponseField name="id" type="str">
+  ID of the connection account.
+</ResponseField>
+
+<ResponseField name="name" type="str">
+  The username of the connection account.
+</ResponseField>
+
+<ResponseField name="type" type="str">
+  The service of connection (twitch, youtube, spotify, etc.).
+</ResponseField>
+
+<ResponseField name="revoked" type="bool">
+  A boolean representing whether the connection is revoked.
+</ResponseField>
+
+<ResponseField name="integrations" type="list">
+  A list of server Integration objects.
+</ResponseField>
+
+<ResponseField name="verified" type="bool">
+  A boolean representing whether the connection is verified.
+</ResponseField>
+
+<ResponseField name="friend_sync" type="bool">
+  A boolean representing whether friend sync is enabled for this connection.
+</ResponseField>
+
+<ResponseField name="show_activity" type="bool">
+  A boolean representing whether activities related to this connection will be shown in presence updates.
+</ResponseField>
+
+<ResponseField name="visibility" type="int">
+  An integer representing [visibility](https://discordapp.com/developers/docs/resources/user#user-object-visibility-types) of this connection.
+</ResponseField>
+
+## Properties
+
+### is_visible
+
+A property returning bool if this integration is visible to everyone.
+
+```python
+@property
+is_visible -> bool
+```
+
+## Methods
+
+### fetch_from_api
+
+A class method which returns a list of instances of this model by implicitly making an API call to Discord. If an instance of `User` exists in the users internal cache who are attached to these connections then, the cached property `User.connections` is updated.
+
+```python
+@classmethod
+fetch_from_api(cache: bool = True) -> list[UserConnection]
+```
+
+<ParamField path="cache" type="bool" default="True">
+  Determines if the `User.connections` cache should be updated with the new connections.
+</ParamField>
+
+**Returns:** List of `flask_discord.UserConnection` instances to which this user belongs.
+
+## Example
+
+```python
+from flask_discord import DiscordOAuth2Session
+
+# Fetch user connections
+connections = discord.fetch_connections()
+
+for connection in connections:
+    print(connection.type)  # "twitch", "youtube", "spotify", etc.
+    print(connection.name)  # Username on that platform
+    print(connection.verified)  # True/False
+    print(connection.is_visible)  # True/False
+    
+    if connection.type == "twitch":
+        print(f"Twitch: {connection.name}")
+    elif connection.type == "youtube":
+        print(f"YouTube: {connection.name}")
+```
+
+<Note>
+  To fetch user connections, you need the `connections` OAuth2 scope.
+</Note>

@@ -1,0 +1,646 @@
+---
+title: Discord Permissions
+description: Understanding and using Discord's permission system in Flask-Discord
+---
+
+Discord's permission system controls what actions users and bots can perform in guilds and channels. Flask-Discord provides a `Permissions` class to easily work with Discord permissions when adding bots to servers.
+
+## Overview
+
+The `Permissions` class is used when adding bots to guilds through OAuth2 with the `bot` scope. It allows you to specify exactly what permissions your bot should have.
+
+```python
+from flask_discord.types import Permissions
+from flask_discord import DiscordOAuth2Session
+
+@app.route("/add-bot")
+def add_bot():
+    perms = Permissions(send_messages=True, manage_messages=True)
+    return discord.create_session(scope=["bot"], permissions=perms)
+```
+
+## Creating Permissions
+
+### Using Keyword Arguments
+
+The most intuitive way to create permissions is using keyword arguments:
+
+```python
+perms = Permissions(
+    send_messages=True,
+    manage_messages=True,
+    embed_links=True,
+    attach_files=True
+)
+```
+
+### Using Integer Values
+
+Permissions are stored as a bitfield integer. You can create permissions from an integer:
+
+```python
+# Administrator permission (value: 8)
+perms = Permissions(8)
+
+# Multiple permissions using bitwise operations
+perms = Permissions((1 << 11) | (1 << 13))  # send_messages + manage_messages
+```
+
+### Using Factory Methods
+
+The `Permissions` class provides several factory methods for common permission sets:
+
+```python
+# No permissions
+perms = Permissions.none()
+
+# All permissions
+perms = Permissions.all()
+
+# All channel permissions (excludes guild-specific ones)
+perms = Permissions.all_channel()
+
+# General permissions
+perms = Permissions.general()
+
+# Text channel permissions
+perms = Permissions.text()
+
+# Voice channel permissions
+perms = Permissions.voice()
+
+# Stage channel permissions
+perms = Permissions.stage()
+
+# Stage moderator permissions
+perms = Permissions.stage_moderator()
+
+# Membership permissions
+perms = Permissions.membership()
+
+# Advanced permissions
+perms = Permissions.advanced()
+```
+
+## Available Permissions
+
+### General Permissions
+
+<Accordion title="administrator">
+**Administrator permission**
+
+Grants all permissions and bypasses channel-specific overrides.
+
+```python
+perms = Permissions(administrator=True)
+```
+
+<Warning>
+This permission grants complete control over the server. Only use it if your bot absolutely requires it.
+</Warning>
+</Accordion>
+
+<Accordion title="view_audit_log">
+**View server audit log**
+
+Allows viewing the guild's audit log.
+
+```python
+perms = Permissions(view_audit_log=True)
+```
+</Accordion>
+
+<Accordion title="manage_guild">
+**Manage server settings**
+
+Allows editing guild properties and settings.
+
+```python
+perms = Permissions(manage_guild=True)
+```
+</Accordion>
+
+<Accordion title="view_guild_insights">
+**View server insights**
+
+Allows viewing guild analytics and insights.
+
+```python
+perms = Permissions(view_guild_insights=True)
+```
+</Accordion>
+
+### Membership Permissions
+
+<Accordion title="create_instant_invite">
+**Create instant invites**
+
+Allows creating invites to the guild.
+
+```python
+perms = Permissions(create_instant_invite=True)
+```
+</Accordion>
+
+<Accordion title="kick_members">
+**Kick members**
+
+Allows kicking members from the guild.
+
+```python
+perms = Permissions(kick_members=True)
+```
+</Accordion>
+
+<Accordion title="ban_members">
+**Ban members**
+
+Allows banning members from the guild.
+
+```python
+perms = Permissions(ban_members=True)
+```
+</Accordion>
+
+<Accordion title="change_nickname">
+**Change own nickname**
+
+Allows changing the bot's own nickname.
+
+```python
+perms = Permissions(change_nickname=True)
+```
+</Accordion>
+
+<Accordion title="manage_nicknames">
+**Manage other members' nicknames**
+
+Allows changing other users' nicknames.
+
+```python
+perms = Permissions(manage_nicknames=True)
+```
+</Accordion>
+
+### Channel Permissions
+
+<Accordion title="manage_channels">
+**Manage channels**
+
+Allows creating, editing, and deleting channels.
+
+```python
+perms = Permissions(manage_channels=True)
+```
+</Accordion>
+
+<Accordion title="view_channel / read_messages">
+**View channels**
+
+Allows viewing channels. `view_channel` is an alias for `read_messages`.
+
+```python
+perms = Permissions(view_channel=True)
+# Or
+perms = Permissions(read_messages=True)
+```
+</Accordion>
+
+### Text Channel Permissions
+
+<Accordion title="send_messages">
+**Send messages**
+
+Allows sending messages in text channels.
+
+```python
+perms = Permissions(send_messages=True)
+```
+</Accordion>
+
+<Accordion title="send_tts_messages">
+**Send text-to-speech messages**
+
+Allows sending TTS messages.
+
+```python
+perms = Permissions(send_tts_messages=True)
+```
+</Accordion>
+
+<Accordion title="manage_messages">
+**Manage messages**
+
+Allows deleting and pinning messages from other users.
+
+```python
+perms = Permissions(manage_messages=True)
+```
+</Accordion>
+
+<Accordion title="embed_links">
+**Embed links**
+
+Allows links to be automatically embedded.
+
+```python
+perms = Permissions(embed_links=True)
+```
+</Accordion>
+
+<Accordion title="attach_files">
+**Attach files**
+
+Allows uploading files and media.
+
+```python
+perms = Permissions(attach_files=True)
+```
+</Accordion>
+
+<Accordion title="read_message_history">
+**Read message history**
+
+Allows reading previous messages in channels.
+
+```python
+perms = Permissions(read_message_history=True)
+```
+</Accordion>
+
+<Accordion title="mention_everyone">
+**Mention @everyone and @here**
+
+Allows mentioning @everyone, @here, and all roles.
+
+```python
+perms = Permissions(mention_everyone=True)
+```
+</Accordion>
+
+<Accordion title="use_external_emojis / external_emojis">
+**Use external emojis**
+
+Allows using emojis from other servers.
+
+```python
+perms = Permissions(use_external_emojis=True)
+# Or
+perms = Permissions(external_emojis=True)
+```
+</Accordion>
+
+<Accordion title="add_reactions">
+**Add reactions**
+
+Allows adding reactions to messages.
+
+```python
+perms = Permissions(add_reactions=True)
+```
+</Accordion>
+
+<Accordion title="use_slash_commands">
+**Use application commands**
+
+Allows using slash commands.
+
+```python
+perms = Permissions(use_slash_commands=True)
+```
+</Accordion>
+
+### Voice Channel Permissions
+
+<Accordion title="connect">
+**Connect to voice channels**
+
+Allows joining voice channels.
+
+```python
+perms = Permissions(connect=True)
+```
+</Accordion>
+
+<Accordion title="speak">
+**Speak in voice channels**
+
+Allows speaking in voice channels.
+
+```python
+perms = Permissions(speak=True)
+```
+</Accordion>
+
+<Accordion title="stream">
+**Video/Screen share**
+
+Allows streaming in voice channels.
+
+```python
+perms = Permissions(stream=True)
+```
+</Accordion>
+
+<Accordion title="mute_members">
+**Mute members**
+
+Allows muting members in voice channels.
+
+```python
+perms = Permissions(mute_members=True)
+```
+</Accordion>
+
+<Accordion title="deafen_members">
+**Deafen members**
+
+Allows deafening members in voice channels.
+
+```python
+perms = Permissions(deafen_members=True)
+```
+</Accordion>
+
+<Accordion title="move_members">
+**Move members**
+
+Allows moving members between voice channels.
+
+```python
+perms = Permissions(move_members=True)
+```
+</Accordion>
+
+<Accordion title="use_voice_activation">
+**Use voice activity**
+
+Allows using voice activity detection instead of push-to-talk.
+
+```python
+perms = Permissions(use_voice_activation=True)
+```
+</Accordion>
+
+<Accordion title="priority_speaker">
+**Priority speaker**
+
+Allows being more easily heard in voice channels.
+
+```python
+perms = Permissions(priority_speaker=True)
+```
+</Accordion>
+
+### Stage Channel Permissions
+
+<Accordion title="request_to_speak">
+**Request to speak**
+
+Allows requesting to speak in stage channels.
+
+```python
+perms = Permissions(request_to_speak=True)
+```
+</Accordion>
+
+### Management Permissions
+
+<Accordion title="manage_roles / manage_permissions">
+**Manage roles and permissions**
+
+Allows managing roles and channel permissions.
+
+```python
+perms = Permissions(manage_roles=True)
+# Or
+perms = Permissions(manage_permissions=True)
+```
+</Accordion>
+
+<Accordion title="manage_webhooks">
+**Manage webhooks**
+
+Allows creating, editing, and deleting webhooks.
+
+```python
+perms = Permissions(manage_webhooks=True)
+```
+</Accordion>
+
+<Accordion title="manage_emojis">
+**Manage emojis and stickers**
+
+Allows managing custom emojis and stickers.
+
+```python
+perms = Permissions(manage_emojis=True)
+```
+</Accordion>
+
+## Modifying Permissions
+
+### Setting Individual Permissions
+
+You can modify permissions after creation:
+
+```python
+perms = Permissions.none()
+perms.send_messages = True
+perms.embed_links = True
+perms.attach_files = True
+```
+
+### Updating Multiple Permissions
+
+Use the `update()` method to set multiple permissions at once:
+
+```python
+perms = Permissions.none()
+perms.update(
+    send_messages=True,
+    manage_messages=True,
+    embed_links=True,
+    attach_files=True
+)
+```
+
+## Comparing Permissions
+
+### Equality
+
+```python
+perms1 = Permissions(send_messages=True)
+perms2 = Permissions(send_messages=True)
+print(perms1 == perms2)  # True
+```
+
+### Subset and Superset
+
+```python
+perms1 = Permissions(send_messages=True)
+perms2 = Permissions(send_messages=True, manage_messages=True)
+
+# Check if perms1 is subset of perms2
+print(perms1.is_subset(perms2))  # True
+print(perms1 <= perms2)  # True
+
+# Check if perms2 is superset of perms1
+print(perms2.is_superset(perms1))  # True
+print(perms2 >= perms1)  # True
+
+# Strict comparisons
+print(perms1.is_strict_subset(perms2))  # True
+print(perms1 < perms2)  # True
+```
+
+## Using Permissions with OAuth2
+
+### Basic Bot Authorization
+
+```python
+from flask_discord.types import Permissions
+
+@app.route("/add-bot")
+def add_bot():
+    perms = Permissions(
+        view_channel=True,
+        send_messages=True,
+        embed_links=True,
+        attach_files=True,
+        read_message_history=True,
+        add_reactions=True
+    )
+    return discord.create_session(scope=["bot"], permissions=perms)
+```
+
+### Moderation Bot Permissions
+
+```python
+@app.route("/add-mod-bot")
+def add_mod_bot():
+    perms = Permissions(
+        view_channel=True,
+        send_messages=True,
+        manage_messages=True,
+        kick_members=True,
+        ban_members=True,
+        manage_roles=True,
+        view_audit_log=True
+    )
+    return discord.create_session(scope=["bot"], permissions=perms)
+```
+
+### Music Bot Permissions
+
+```python
+@app.route("/add-music-bot")
+def add_music_bot():
+    perms = Permissions(
+        view_channel=True,
+        send_messages=True,
+        embed_links=True,
+        connect=True,
+        speak=True,
+        use_voice_activation=True
+    )
+    return discord.create_session(scope=["bot"], permissions=perms)
+```
+
+### Using Integer Permissions
+
+You can also pass permissions as an integer:
+
+```python
+@app.route("/add-bot")
+def add_bot():
+    # Administrator permission
+    return discord.create_session(scope=["bot"], permissions=8)
+```
+
+## Iterating Over Permissions
+
+You can iterate over permissions to see which are enabled:
+
+```python
+perms = Permissions(send_messages=True, manage_messages=True)
+
+for perm_name, value in perms:
+    if value:
+        print(f"{perm_name} is enabled")
+```
+
+Output:
+```
+send_messages is enabled
+manage_messages is enabled
+```
+
+## Common Permission Patterns
+
+### Read-Only Bot
+```python
+perms = Permissions(
+    view_channel=True,
+    read_message_history=True
+)
+```
+
+### Basic Interactive Bot
+```python
+perms = Permissions(
+    view_channel=True,
+    send_messages=True,
+    embed_links=True,
+    attach_files=True,
+    read_message_history=True,
+    add_reactions=True,
+    use_slash_commands=True
+)
+```
+
+### Moderator Bot
+```python
+perms = Permissions(
+    view_channel=True,
+    send_messages=True,
+    manage_messages=True,
+    kick_members=True,
+    ban_members=True,
+    manage_channels=True,
+    manage_roles=True,
+    view_audit_log=True
+)
+```
+
+### Administrator Bot
+```python
+perms = Permissions(administrator=True)
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Request minimum necessary permissions">
+    Only request permissions your bot actually needs. This builds trust and increases installation rates.
+  </Step>
+  <Step title="Explain why you need permissions">
+    On your authorization page, explain what each permission is used for.
+  </Step>
+  <Step title="Avoid administrator permission">
+    The administrator permission grants complete control. Use specific permissions instead whenever possible.
+  </Step>
+  <Step title="Use factory methods for common sets">
+    Use `Permissions.text()`, `Permissions.voice()`, etc. for standard permission sets.
+  </Step>
+</Steps>
+
+<Note>
+Permissions in Flask-Discord are only used during bot authorization with the `bot` scope. They determine what permissions your bot has when added to a guild.
+</Note>
+
+## Next Steps
+
+- Learn about [OAuth2 Scopes](/core/scopes) to control what data you can access
+- Review [OAuth2 Flow](/core/oauth-flow) for bot authorization
+- Check the [Permissions API Reference](/api/types/permissions) for the complete Permissions class

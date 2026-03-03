@@ -1,0 +1,328 @@
+---
+title: User Dashboard Example
+description: Build a complete user dashboard displaying profile information, avatar, and connections
+---
+
+This example shows how to create a user dashboard that displays detailed Discord profile information including avatar, connections, and user properties.
+
+## Overview
+
+This example demonstrates:
+- Fetching user profile data
+- Displaying user avatar (including animated avatars)
+- Accessing user connections (GitHub, Spotify, etc.)
+- Using different OAuth2 scopes
+- Implementing logout functionality
+
+## Complete Example
+
+```python
+import os
+
+from flask import Flask, redirect, url_for, render_template_string
+from flask_discord import DiscordOAuth2Session, requires_authorization, Unauthorized
+
+app = Flask(__name__)
+
+app.secret_key = b"random bytes representing flask secret key"
+os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "true"  # !! Only in development environment.
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = "your-client-secret"
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback/"
+
+discord = DiscordOAuth2Session(app)
+
+HYPERLINK = '<a href="{}">{}</a>'
+
+
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return f'{HYPERLINK.format(url_for(".login"), "Login")}'
+    
+    return f'''
+    {HYPERLINK.format(url_for(".me"), "Profile")}<br />
+    {HYPERLINK.format(url_for(".my_connections"), "Connections")}<br />
+    {HYPERLINK.format(url_for(".logout"), "Logout")}
+    '''
+
+
+@app.route("/login/")
+def login():
+    # Request identify, email, and connections scopes
+    return discord.create_session(scope=["identify", "email", "connections"])
+
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for(".me"))
+
+
+@app.errorhandler(Unauthorized)
+def redirect_unauthorized(e):
+    return redirect(url_for("login"))
+
+
+@app.route("/me/")
+@requires_authorization
+def me():
+    user = discord.fetch_user()
+    
+    # Use avatar_url if available, otherwise use default_avatar_url
+    avatar = user.avatar_url or user.default_avatar_url
+    
+    return f"""
+    <html>
+    <head>
+        <title>{user.name}</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                max-width: 600px;
+                margin: 50px auto;
+                padding: 20px;
+            }}
+            .profile {{
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                padding: 20px;
+            }}
+            .avatar {{
+                width: 128px;
+                height: 128px;
+                border-radius: 50%;
+            }}
+            .info {{
+                margin-top: 20px;
+            }}
+            .info-row {{
+                margin: 10px 0;
+            }}
+            .label {{
+                font-weight: bold;
+                display: inline-block;
+                width: 150px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="profile">
+            <h1>User Profile</h1>
+            <img src='{avatar}' class='avatar' />
+            <div class="info">
+                <div class="info-row">
+                    <span class="label">Username:</span>
+                    <span>{user.name}#{user.discriminator}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">User ID:</span>
+                    <span>{user.id}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Email:</span>
+                    <span>{user.email}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Verified:</span>
+                    <span>{"✓" if user.verified else "✗"}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Animated Avatar:</span>
+                    <span>{"✓" if user.is_avatar_animated else "✗"}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">MFA Enabled:</span>
+                    <span>{"✓" if user.mfa_enabled else "✗"}</span>
+                </div>
+                <div class="info-row">
+                    <span class="label">Locale:</span>
+                    <span>{user.locale}</span>
+                </div>
+            </div>
+            <br />
+            <a href="{url_for("my_connections")}">View Connections</a> |
+            <a href="{url_for("index")}">Home</a> |
+            <a href="{url_for("logout")}">Logout</a>
+        </div>
+    </body>
+    </html>
+    """
+
+
+@app.route("/me/connections/")
+@requires_authorization
+def my_connections():
+    user = discord.fetch_user()
+    connections = discord.fetch_connections()
+    
+    connection_list = "<br />".join(
+        [f"<strong>{connection.type}</strong>: {connection.name}" for connection in connections]
+    ) if connections else "<em>No connections found</em>"
+    
+    return f"""
+    <html>
+    <head>
+        <title>{user.name} - Connections</title>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                max-width: 600px;
+                margin: 50px auto;
+                padding: 20px;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>Connected Accounts</h1>
+        <p>{connection_list}</p>
+        <br />
+        <a href="{url_for("me")}">Back to Profile</a> |
+        <a href="{url_for("index")}">Home</a>
+    </body>
+    </html>
+    """
+
+
+@app.route("/logout/")
+@requires_authorization
+def logout():
+    discord.revoke()
+    return redirect(url_for(".index"))
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+```
+
+## Key Features
+
+<Steps>
+
+### Requesting scopes
+
+To access user email and connections, request the appropriate scopes in `create_session()`:
+
+```python
+@app.route("/login/")
+def login():
+    return discord.create_session(scope=["identify", "email", "connections"])
+```
+
+Available scopes:
+- `identify` - Basic user information (username, avatar, discriminator)
+- `email` - User's email address
+- `connections` - User's connected accounts (GitHub, Spotify, etc.)
+- `guilds` - User's guild/server list
+- `guilds.join` - Ability to add user to a guild
+
+### Fetching user data
+
+Use `discord.fetch_user()` to get the authenticated user's profile:
+
+```python
+user = discord.fetch_user()
+print(f"{user.name}#{user.discriminator}")  # Username#1234
+print(user.id)                              # 1234567890
+print(user.email)                           # user@example.com
+print(user.avatar_url)                      # https://cdn.discordapp.com/...
+```
+
+### Handling avatars
+
+Users may not have a custom avatar. Use `default_avatar_url` as a fallback:
+
+```python
+avatar = user.avatar_url or user.default_avatar_url
+```
+
+Check if the avatar is animated (GIF):
+
+```python
+if user.is_avatar_animated:
+    print("User has an animated avatar!")
+```
+
+### Fetching connections
+
+Retrieve the user's connected accounts:
+
+```python
+connections = discord.fetch_connections()
+for connection in connections:
+    print(f"{connection.type}: {connection.name}")
+```
+
+Connection types include: `github`, `spotify`, `twitch`, `youtube`, `twitter`, and more.
+
+### Logging out
+
+The `revoke()` method clears the user's session and removes them from the internal cache:
+
+```python
+@app.route("/logout/")
+@requires_authorization
+def logout():
+    discord.revoke()
+    return redirect(url_for(".index"))
+```
+
+</Steps>
+
+## User Model Properties
+
+The `User` object provides access to these properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | int | Discord user ID |
+| `username` | str | Username |
+| `name` | str | Alias for username |
+| `discriminator` | str | 4-digit discriminator tag |
+| `avatar_hash` | str | Hash of user's avatar |
+| `avatar_url` | str | Direct URL to avatar image |
+| `default_avatar_url` | str | URL to default Discord avatar |
+| `is_avatar_animated` | bool | Whether avatar is animated (GIF) |
+| `email` | str | Email address (requires `email` scope) |
+| `verified` | bool | Whether email is verified |
+| `locale` | str | User's language setting |
+| `mfa_enabled` | bool | Whether 2FA is enabled |
+| `bot` | bool | Whether account is a bot |
+| `flags` | int | User flags bitfield |
+| `premium_type` | int | Nitro subscription type |
+
+<Note>
+Some properties like `email` and `verified` require the `email` scope. Request only the scopes you need.
+</Note>
+
+## Caching
+
+Flask-Discord automatically caches user data to reduce API calls:
+
+```python
+# First call fetches from Discord API
+user = discord.fetch_user()
+
+# Subsequent calls use cached data
+user = discord.fetch_user()  # Returns cached user
+```
+
+The cache is cleared when:
+- User logs out via `discord.revoke()`
+- Session expires
+- Application restarts
+
+<Tip>
+You can also fetch and cache guilds and connections when fetching the user:
+
+```python
+user = User.fetch_from_api(guilds=True, connections=True)
+```
+</Tip>
+
+## Next Steps
+
+- Learn about [guild management](/examples/guild-management) to access user's servers
+- Explore the [User API reference](/api/models/user) for all available methods
+- Check out [OAuth2 scopes](/core/scopes) for detailed scope information

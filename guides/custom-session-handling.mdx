@@ -1,0 +1,517 @@
+---
+title: Custom Session Handling
+description: Learn how to implement server-side session storage in Flask-Discord
+---
+
+## Overview
+
+By default, Flask-Discord stores OAuth2 tokens in client-side sessions using Flask's session object. For production applications, you may want to implement server-side session storage using databases like Redis, PostgreSQL, or MongoDB.
+
+## How Flask-Discord Sessions Work
+
+Flask-Discord uses two static methods to manage OAuth2 tokens:
+
+1. **`save_authorization_token(token)`** - Saves the token after successful OAuth
+2. **`get_authorization_token()`** - Retrieves the token for API requests
+
+By default, these methods use Flask's client-side session:
+
+```python
+# Default implementation in Flask-Discord
+@staticmethod
+def save_authorization_token(token: dict):
+    session["DISCORD_OAUTH2_TOKEN"] = token
+
+@staticmethod
+def get_authorization_token() -> dict:
+    return session.get("DISCORD_OAUTH2_TOKEN")
+```
+
+## Implementing Custom Session Storage
+
+### Creating a Custom Session Class
+
+To implement server-side storage, create a subclass of `DiscordOAuth2Session` and override both methods:
+
+<Steps>
+
+### Create Custom Session Class
+
+Subclass `DiscordOAuth2Session` and override the token methods.
+
+### Implement Save Method
+
+Store tokens in your database or cache.
+
+### Implement Get Method
+
+Retrieve tokens from your storage backend.
+
+### Use Your Custom Class
+
+Instantiate your custom class instead of the base class.
+
+</Steps>
+
+## Examples
+
+### Redis Session Storage
+
+<CodeGroup>
+
+```python Redis Implementation
+import os
+import redis
+from flask import Flask, session
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+# Initialize Redis connection
+redis_client = redis.Redis(
+    host='localhost',
+    port=6379,
+    db=0,
+    decode_responses=True
+)
+
+class RedisDiscordSession(DiscordOAuth2Session):
+    @staticmethod
+    def save_authorization_token(token: dict):
+        """Save token to Redis with user ID as key."""
+        # Get or create a unique session ID
+        session_id = session.get("session_id")
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            session["session_id"] = session_id
+        
+        # Store token in Redis with 7-day expiration
+        redis_client.setex(
+            f"discord_token:{session_id}",
+            604800,  # 7 days in seconds
+            str(token)
+        )
+    
+    @staticmethod
+    def get_authorization_token() -> dict:
+        """Retrieve token from Redis."""
+        session_id = session.get("session_id")
+        if not session_id:
+            return None
+        
+        token_str = redis_client.get(f"discord_token:{session_id}")
+        if not token_str:
+            return None
+        
+        # Convert string back to dict
+        import ast
+        return ast.literal_eval(token_str)
+
+# Use custom session class
+discord = RedisDiscordSession(app)
+```
+
+```python With JSON Serialization
+import os
+import json
+import redis
+from flask import Flask, session
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+redis_client = redis.Redis(
+    host='localhost',
+    port=6379,
+    db=0
+)
+
+class RedisDiscordSession(DiscordOAuth2Session):
+    @staticmethod
+    def save_authorization_token(token: dict):
+        session_id = session.get("session_id")
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            session["session_id"] = session_id
+        
+        # Serialize to JSON
+        token_json = json.dumps(token)
+        redis_client.setex(
+            f"discord_token:{session_id}",
+            604800,
+            token_json
+        )
+    
+    @staticmethod
+    def get_authorization_token() -> dict:
+        session_id = session.get("session_id")
+        if not session_id:
+            return None
+        
+        token_json = redis_client.get(f"discord_token:{session_id}")
+        if not token_json:
+            return None
+        
+        # Deserialize from JSON
+        return json.loads(token_json)
+
+discord = RedisDiscordSession(app)
+```
+
+</CodeGroup>
+
+### Database Session Storage
+
+<CodeGroup>
+
+```python SQLAlchemy Example
+import os
+from flask import Flask, session
+from flask_sqlalchemy import SQLAlchemy
+from flask_discord import DiscordOAuth2Session
+import json
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///discord_sessions.db"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+db = SQLAlchemy(app)
+
+class DiscordToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.String(100), unique=True, nullable=False)
+    token_data = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+class DatabaseDiscordSession(DiscordOAuth2Session):
+    @staticmethod
+    def save_authorization_token(token: dict):
+        session_id = session.get("session_id")
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            session["session_id"] = session_id
+        
+        # Check if token exists
+        existing = DiscordToken.query.filter_by(session_id=session_id).first()
+        
+        if existing:
+            existing.token_data = json.dumps(token)
+        else:
+            new_token = DiscordToken(
+                session_id=session_id,
+                token_data=json.dumps(token)
+            )
+            db.session.add(new_token)
+        
+        db.session.commit()
+    
+    @staticmethod
+    def get_authorization_token() -> dict:
+        session_id = session.get("session_id")
+        if not session_id:
+            return None
+        
+        token_record = DiscordToken.query.filter_by(session_id=session_id).first()
+        if not token_record:
+            return None
+        
+        return json.loads(token_record.token_data)
+
+# Create tables
+with app.app_context():
+    db.create_all()
+
+discord = DatabaseDiscordSession(app)
+```
+
+```python MongoDB Example
+import os
+from flask import Flask, session
+from flask_pymongo import PyMongo
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+app.config["MONGO_URI"] = "mongodb://localhost:27017/discord_app"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+mongo = PyMongo(app)
+
+class MongoDiscordSession(DiscordOAuth2Session):
+    @staticmethod
+    def save_authorization_token(token: dict):
+        session_id = session.get("session_id")
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            session["session_id"] = session_id
+        
+        # Upsert token document
+        mongo.db.tokens.update_one(
+            {"session_id": session_id},
+            {"$set": {
+                "session_id": session_id,
+                "token": token
+            }},
+            upsert=True
+        )
+    
+    @staticmethod
+    def get_authorization_token() -> dict:
+        session_id = session.get("session_id")
+        if not session_id:
+            return None
+        
+        doc = mongo.db.tokens.find_one({"session_id": session_id})
+        if not doc:
+            return None
+        
+        return doc.get("token")
+
+discord = MongoDiscordSession(app)
+```
+
+</CodeGroup>
+
+### File-Based Session Storage
+
+<Warning>
+File-based storage is not recommended for production. Use it only for development or testing.
+</Warning>
+
+```python app.py
+import os
+import json
+from pathlib import Path
+from flask import Flask, session
+from flask_discord import DiscordOAuth2Session
+
+app = Flask(__name__)
+app.secret_key = b"your-secret-key"
+
+app.config["DISCORD_CLIENT_ID"] = 490732332240863233
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = "http://127.0.0.1:5000/callback"
+
+# Create sessions directory
+SESSIONS_DIR = Path("./sessions")
+SESSIONS_DIR.mkdir(exist_ok=True)
+
+class FileDiscordSession(DiscordOAuth2Session):
+    @staticmethod
+    def save_authorization_token(token: dict):
+        session_id = session.get("session_id")
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            session["session_id"] = session_id
+        
+        # Save to file
+        file_path = SESSIONS_DIR / f"{session_id}.json"
+        with open(file_path, 'w') as f:
+            json.dump(token, f)
+    
+    @staticmethod
+    def get_authorization_token() -> dict:
+        session_id = session.get("session_id")
+        if not session_id:
+            return None
+        
+        file_path = SESSIONS_DIR / f"{session_id}.json"
+        if not file_path.exists():
+            return None
+        
+        with open(file_path, 'r') as f:
+            return json.load(f)
+
+discord = FileDiscordSession(app)
+```
+
+## Important Considerations
+
+### Session ID Management
+
+<Note>
+You must maintain a session ID to link the user's Flask session to their stored token. The examples above use a UUID stored in Flask's session.
+</Note>
+
+```python
+# Generate unique session ID on first authorization
+import uuid
+
+session_id = session.get("session_id")
+if not session_id:
+    session_id = str(uuid.uuid4())
+    session["session_id"] = session_id
+```
+
+### Token Expiration
+
+OAuth2 tokens typically expire. Consider implementing:
+
+1. **TTL (Time To Live)** - Automatically expire old tokens
+2. **Refresh token logic** - Refresh expired tokens automatically
+3. **Cleanup jobs** - Periodically remove expired tokens
+
+```python Redis with TTL
+# Set 7-day expiration on token
+redis_client.setex(
+    f"discord_token:{session_id}",
+    604800,  # 7 days
+    token_json
+)
+```
+
+### Security Best Practices
+
+<Warning>
+**Critical Security Considerations:**
+
+1. **Encrypt tokens** - Consider encrypting tokens before storage
+2. **Secure session IDs** - Use cryptographically secure random IDs
+3. **HTTPS only** - Always use HTTPS in production
+4. **Validate sessions** - Verify session ownership before returning tokens
+5. **Regular cleanup** - Remove old/expired tokens
+</Warning>
+
+## Complete Production Example
+
+```python app.py
+import os
+import json
+import redis
+from datetime import timedelta
+from flask import Flask, session, redirect, url_for
+from flask_discord import DiscordOAuth2Session, requires_authorization
+
+app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY")
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
+
+app.config["DISCORD_CLIENT_ID"] = int(os.getenv("DISCORD_CLIENT_ID"))
+app.config["DISCORD_CLIENT_SECRET"] = os.getenv("DISCORD_CLIENT_SECRET")
+app.config["DISCORD_REDIRECT_URI"] = os.getenv("DISCORD_REDIRECT_URI")
+
+# Redis connection with connection pooling
+redis_pool = redis.ConnectionPool(
+    host=os.getenv("REDIS_HOST", "localhost"),
+    port=int(os.getenv("REDIS_PORT", 6379)),
+    db=0,
+    decode_responses=False
+)
+redis_client = redis.Redis(connection_pool=redis_pool)
+
+class ProductionDiscordSession(DiscordOAuth2Session):
+    @staticmethod
+    def save_authorization_token(token: dict):
+        # Use cryptographically secure session ID
+        session_id = session.get("discord_session_id")
+        if not session_id:
+            import secrets
+            session_id = secrets.token_urlsafe(32)
+            session["discord_session_id"] = session_id
+            session.permanent = True
+        
+        # Serialize and store with expiration
+        token_json = json.dumps(token)
+        redis_client.setex(
+            f"discord_token:{session_id}",
+            timedelta(days=7),
+            token_json
+        )
+    
+    @staticmethod
+    def get_authorization_token() -> dict:
+        session_id = session.get("discord_session_id")
+        if not session_id:
+            return None
+        
+        token_data = redis_client.get(f"discord_token:{session_id}")
+        if not token_data:
+            # Token expired or doesn't exist
+            return None
+        
+        return json.loads(token_data)
+
+discord = ProductionDiscordSession(app)
+
+@app.route("/")
+def index():
+    if not discord.authorized:
+        return '<a href="/login/">Login</a>'
+    
+    user = discord.fetch_user()
+    return f'<h1>Welcome {user.name}!</h1><a href="/logout/">Logout</a>'
+
+@app.route("/login/")
+def login():
+    return discord.create_session(scope=["identify", "email"])
+
+@app.route("/callback/")
+def callback():
+    discord.callback()
+    return redirect(url_for("index"))
+
+@app.route("/logout/")
+def logout():
+    # Clean up Redis token
+    session_id = session.get("discord_session_id")
+    if session_id:
+        redis_client.delete(f"discord_token:{session_id}")
+    
+    discord.revoke()
+    return redirect(url_for("index"))
+
+if __name__ == "__main__":
+    app.run()
+```
+
+## Testing Your Implementation
+
+Verify your custom session handling works correctly:
+
+```python test_custom_session.py
+def test_save_and_retrieve():
+    test_token = {
+        "access_token": "test_access_token",
+        "token_type": "Bearer",
+        "expires_in": 604800,
+        "refresh_token": "test_refresh_token",
+        "scope": "identify email"
+    }
+    
+    # Save token
+    discord.save_authorization_token(test_token)
+    
+    # Retrieve token
+    retrieved = discord.get_authorization_token()
+    
+    assert retrieved == test_token
+    print("✓ Custom session handling works!")
+```
+
+## Next Steps
+
+- [Basic Authentication](/guides/basic-authentication) - Review authentication basics
+- [Fetching User Data](/guides/fetching-user-data) - Work with user data
+- [Working with Guilds](/guides/working-with-guilds) - Manage guild operations
