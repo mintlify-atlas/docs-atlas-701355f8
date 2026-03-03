@@ -1,0 +1,110 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Flask-Discord",
+  "projectDescription": "Discord OAuth2 extension for Flask applications",
+  "theme": "palm",
+  "primaryColor": "#5865F2",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "core/oauth-flow",
+              "core/session-management",
+              "core/scopes",
+              "core/permissions"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/basic-authentication",
+              "guides/fetching-user-data",
+              "guides/working-with-guilds",
+              "guides/bot-integration",
+              "guides/custom-session-handling"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/simple-login",
+              "examples/user-dashboard",
+              "examples/guild-management"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Client",
+            "pages": [
+              "api/client/discord-oauth2-session"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api/models/user",
+              "api/models/guild",
+              "api/models/user-connection"
+            ]
+          },
+          {
+            "group": "Types",
+            "pages": [
+              "api/types/permissions"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/utilities/decorators"
+            ]
+          },
+          {
+            "group": "Exceptions",
+            "pages": [
+              "api/exceptions"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Discord OAuth2 authentication and authorization",
+    "Automatic user session management with Flask sessions",
+    "Fetch user profile, guilds, and connections",
+    "Bot scope support with permission handling",
+    "Built-in user caching with LFU/TTL strategies",
+    "Authorization decorator for protected routes"
+  ],
+  "publicApiSurface": [
+    "DiscordOAuth2Session",
+    "requires_authorization",
+    "User",
+    "Guild",
+    "UserConnection",
+    "Permissions",
+    "HttpException",
+    "RateLimited",
+    "Unauthorized",
+    "AccessDenied"
+  ]
+}
